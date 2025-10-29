@@ -4,10 +4,10 @@
   "version": "0.1.0",
   "identifier": "com.dhruv.gritorquit",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "cd Frontend && npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
-    "frontendDist": "../dist"
+    "beforeBuildCommand": "cd Frontend && npm run build",
+    "frontendDist": "../Frontend/dist"
   },
   "app": {
     "windows": [

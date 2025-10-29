@@ -5,7 +5,7 @@ import {
   BarChart2,
   Settings,
   ChevronsLeft,
-  LogOut, // Add LogOut icon
+  LogOut,
 } from "lucide-react";
 import { useState } from "react";
 import { NavLink } from "react-router-dom";
@@ -23,8 +23,8 @@ function NavItem({ item, collapsed }) {
         transition-all duration-200 ease-in-out
         ${
           isActive
-            ? "bg-blue-50 text-blue-600 dark:bg-blue-900/50 dark:text-blue-200"
-            : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-neutral-100"
+            ? "bg-[color-mix(in_srgb,var(--accent-color)_10%_transparent)] text-[var(--accent-color)] border border-[color-mix(in_srgb,var(--accent-color)_20%_transparent)]"
+            : "text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)]"
         }
       `}
     >
@@ -47,10 +47,9 @@ function NavItem({ item, collapsed }) {
         <span
           className="
             absolute left-full ml-4 px-3 py-1.5 rounded-md
-            bg-white dark:bg-neutral-800
-            text-neutral-900 dark:text-neutral-100
+            bg-[var(--bg-card)] text-[var(--text-primary)]
             text-sm font-medium
-            shadow-lg
+            shadow-lg border border-[var(--border-color)]
             opacity-0 group-hover:opacity-100
             translate-x-[-10px] group-hover:translate-x-0
             transition-all duration-300 ease-in-out
@@ -68,7 +67,6 @@ function NavItem({ item, collapsed }) {
 
 /**
  * The main Sidebar component.
- * Now accepts username and onLogout props
  */
 export default function Sidebar({ username, onLogout }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -80,8 +78,10 @@ export default function Sidebar({ username, onLogout }) {
       icon: <LayoutDashboard size={20} />,
     },
     { name: "Tasks", path: "/tasks", icon: <CheckSquare size={20} /> },
-    { name: "Planner", path: "/planner", icon: <Calendar size={20} /> },
-    { name: "Analytics", path: "/analytics", icon: <BarChart2 size={20} /> },
+    { name: "Planner", path: "/planner", icon: <Calendar size={20} />,
+    },
+    { name: "Analytics", path: "/analytics", icon: <BarChart2 size={20} />,
+    },
   ];
 
   return (
@@ -89,8 +89,8 @@ export default function Sidebar({ username, onLogout }) {
       className={`
         relative h-screen 
         flex flex-col
-        bg-white dark:bg-[#121212] 
-        border-r border-neutral-200 dark:border-neutral-800
+        bg-[var(--bg-secondary)] 
+        border-r border-[var(--border-color)]
         transition-all duration-300 ease-in-out
         ${collapsed ? "w-20" : "w-64"}
       `}
@@ -102,11 +102,11 @@ export default function Sidebar({ username, onLogout }) {
           absolute -right-3 top-1/2 -translate-y-1/2 z-10
           flex items-center justify-center
           w-6 h-6 rounded-full
-          bg-white dark:bg-neutral-800
-          border border-neutral-200 dark:border-neutral-700
+          bg-[var(--bg-card)] 
+          border border-[var(--border-color)]
           shadow-md
-          text-neutral-500 dark:text-neutral-400
-          hover:bg-neutral-100 dark:hover:bg-neutral-700
+          text-[var(--text-secondary)]
+          hover:bg-[var(--hover-bg)]
           transition-all
         "
         aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -121,16 +121,16 @@ export default function Sidebar({ username, onLogout }) {
       </button>
 
       {/* Logo Section */}
-      <div className="flex items-center h-[69px] px-6 border-b border-neutral-200 dark:border-neutral-800">
+      <div className="flex items-center h-[69px] px-6 border-b border-[var(--border-color)]">
         <div
           className={`
             flex items-center gap-2
             font-bold text-lg 
-            text-neutral-900 dark:text-white
+            text-[var(--text-primary)]
             overflow-hidden
           `}
         >
-          <span className="text-blue-500">❖</span>
+          <span className="text-[var(--accent-color)]">❖</span>
           <span
             className={`
               whitespace-nowrap
@@ -151,22 +151,22 @@ export default function Sidebar({ username, onLogout }) {
       </nav>
 
       {/* User Section & Logout */}
-      <div className="p-4 border-t border-neutral-200 dark:border-neutral-800 space-y-2">
+      <div className="p-4 border-t border-[var(--border-color)] space-y-2">
         {/* User Info */}
         <div className={`
           flex items-center gap-3 px-3 py-2 rounded-lg
           transition-all duration-300
           ${collapsed ? "justify-center" : ""}
         `}>
-          <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
+          <div className="w-8 h-8 bg-gradient-to-r from-[var(--accent-color)] to-[color-mix(in_srgb,var(--accent-color)_70%_purple)] rounded-full flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
             {username ? username.charAt(0).toUpperCase() : 'U'}
           </div>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-neutral-900 dark:text-white truncate">
+              <p className="text-sm font-medium text-[var(--text-primary)] truncate">
                 {username || 'User'}
               </p>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">
+              <p className="text-xs text-[var(--text-secondary)]">
                 Welcome back!
               </p>
             </div>
@@ -189,9 +189,9 @@ export default function Sidebar({ username, onLogout }) {
           className={`
             relative group flex items-center gap-3 w-full px-3 py-2.5 rounded-lg
             transition-all duration-200 ease-in-out
-            text-neutral-600 dark:text-neutral-400 
-            hover:bg-red-50 hover:text-red-600 
-            dark:hover:bg-red-900/20 dark:hover:text-red-200
+            text-[var(--text-secondary)] 
+            hover:bg-[color-mix(in_srgb,red_10%_transparent)] hover:text-red-600 
+            dark:hover:bg-[color-mix(in_srgb,red_20%_transparent)]
           `}
         >
           <div className="flex-shrink-0">
@@ -212,10 +212,9 @@ export default function Sidebar({ username, onLogout }) {
             <span
               className="
                 absolute left-full ml-4 px-3 py-1.5 rounded-md
-                bg-white dark:bg-neutral-800
-                text-neutral-900 dark:text-neutral-100
+                bg-[var(--bg-card)] text-[var(--text-primary)]
                 text-sm font-medium
-                shadow-lg
+                shadow-lg border border-[var(--border-color)]
                 opacity-0 group-hover:opacity-100
                 translate-x-[-10px] group-hover:translate-x-0
                 transition-all duration-300 ease-in-out

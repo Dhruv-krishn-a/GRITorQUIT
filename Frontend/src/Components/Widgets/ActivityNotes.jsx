@@ -1,142 +1,128 @@
-// Components/Widgets/ActivityNotes.jsx
-import React, { useMemo } from "react";
-import { ListTodo, NotebookText } from "lucide-react";
+import React from 'react';
+import { Activity, CheckCircle2, Clock, Calendar } from 'lucide-react';
 
-const activityLog = [
-  { id: 1, text: "Deployed v1.2 to staging", time: "2m ago" },
-  { id: 2, text: "Onboarded new client", time: "1h ago" },
-  { id: 3, text: "Fixed login bug", time: "3h ago" },
-  { id: 4, text: "Sprint planning tomorrow", time: "5h ago" },
-];
-
-const notesLog = [
-  { id: 1, text: "Meeting with design team at 2 PM today." },
-  { id: 2, text: "Remember to follow up on the GRT App logo." },
-  { id: 3, text: "Share wireframes with product." },
-];
-
-export default function ActivityNotes({
+export default function ActivityNotes({ 
+  activities = [], 
+  totalActivities = 0,
   containerWidth = 0,
   containerHeight = 0,
-  isCompact = false,
+  isCompact = false 
 }) {
-  // sizeCategory: compact | medium | large
-  const sizeCategory = useMemo(() => {
-    if (isCompact || (containerWidth > 0 && containerWidth < 380)) return "compact";
-    if (containerWidth > 0 && containerWidth < 700) return "medium";
-    return "large";
-  }, [containerWidth, isCompact]);
+  const formatTimeAgo = (timestamp) => {
+    const now = new Date();
+    const time = new Date(timestamp);
+    const diffInHours = Math.floor((now - time) / (1000 * 60 * 60));
+    
+    if (diffInHours < 1) return 'Just now';
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d ago`;
+    return time.toLocaleDateString();
+  };
 
-  const showCount = sizeCategory !== "compact";
+  const formatTimeSpent = (minutes) => {
+    if (!minutes) return '';
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return hours > 0 ? ` in ${hours}h ${mins}m` : ` in ${mins}m`;
+  };
 
-  return (
-    <div className="bg-white dark:bg-[#141414] p-4 rounded-xl shadow-md transition-colors duration-200">
-      <div className="flex items-center gap-3 mb-3">
-        <div className="flex gap-2 items-center">
-          <div className="p-2 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300">
-            <ListTodo size={16} />
+  if (isCompact || containerWidth < 400) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Activity size={16} className="text-orange-500" />
+            <span className="text-sm font-medium">Activity</span>
           </div>
-          <div className="p-2 rounded-md bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-300">
-            <NotebookText size={16} />
-          </div>
+          <span className="text-lg font-bold text-orange-500">{totalActivities}</span>
         </div>
-
-        <div>
-          <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-            Activity & Notes
-          </h3>
-          {showCount && (
-            <p className="text-xs text-neutral-500 dark:text-neutral-400">
-              {activityLog.length} recent · {notesLog.length} notes
-            </p>
-          )}
+        
+        <div className="space-y-2">
+          {activities.slice(0, 3).map((activity, index) => (
+            <div key={index} className="flex items-center gap-2 p-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+              <CheckCircle2 size={14} className="text-orange-500" />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm truncate">Completed {activity.task}</div>
+                <div className="text-xs text-orange-600 truncate">{formatTimeAgo(activity.timestamp)}</div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
+    );
+  }
 
-      {/* Compact: very small footprint, only top items with tiny text */}
-      {sizeCategory === "compact" && (
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between text-xs">
-            <div className="truncate">{activityLog[0]?.text}</div>
-            <div className="text-neutral-400 ml-2">{activityLog[0]?.time}</div>
-          </div>
-
-          <div className="flex items-center justify-between text-xs">
-            <div className="truncate">{notesLog[0]?.text}</div>
-            <div className="text-neutral-400 ml-2">note</div>
-          </div>
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Activity size={18} className="text-orange-500" />
+          <h3 className="font-medium">Recent Activity</h3>
         </div>
-      )}
+        <span className="text-sm text-gray-500 dark:text-gray-400">{totalActivities} activities</span>
+      </div>
 
-      {/* Medium: show short lists with small meta */}
-      {sizeCategory === "medium" && (
-        <div className="space-y-3">
-          <div>
-            <h4 className="text-xs text-neutral-500 mb-2">Recent activity</h4>
-            <div className="space-y-2">
-              {activityLog.slice(0, 3).map((a) => (
-                <div key={a.id} className="flex items-start gap-3">
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center bg-blue-50 dark:bg-blue-900/30 text-blue-600">
-                    <ListTodo size={12} />
-                  </div>
-                  <div className="flex-1">
-                    <div className="text-sm text-neutral-800 dark:text-neutral-100 truncate">
-                      {a.text}
-                    </div>
-                    <div className="text-xs text-neutral-400">{a.time}</div>
-                  </div>
+      {/* Activity List */}
+      <div className="space-y-3 max-h-64 overflow-y-auto">
+        {activities.length > 0 ? (
+          activities.map((activity, index) => (
+            <div key={index} className="flex gap-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center">
+                  <CheckCircle2 size={16} className="text-orange-500" />
                 </div>
-              ))}
+              </div>
+              
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm">
+                  Completed <span className="text-orange-600">"{activity.task}"</span>
+                  {formatTimeSpent(activity.timeSpent)}
+                </div>
+                {activity.plan && (
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    in {activity.plan}
+                  </div>
+                )}
+                <div className="flex items-center gap-2 mt-1">
+                  <Clock size={12} className="text-gray-400" />
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {formatTimeAgo(activity.timestamp)}
+                  </span>
+                </div>
+              </div>
             </div>
+          ))
+        ) : (
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+            <Calendar size={32} className="mx-auto mb-2 opacity-50" />
+            <div className="text-sm">No recent activity</div>
+            <div className="text-xs mt-1">Complete some tasks to see activity here</div>
           </div>
+        )}
+      </div>
 
-          <div>
-            <h4 className="text-xs text-neutral-500 mb-2">Notes</h4>
-            <div className="space-y-2">
-              {notesLog.slice(0, 2).map((n) => (
-                <div key={n.id} className="flex items-start gap-3">
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center bg-green-50 dark:bg-green-900/30 text-green-600">
-                    <NotebookText size={12} />
-                  </div>
-                  <div className="text-sm text-neutral-800 dark:text-neutral-100 truncate">{n.text}</div>
-                </div>
-              ))}
+      {/* Quick Stats */}
+      {activities.length > 0 && (
+        <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div>
+              <div className="text-sm font-bold text-orange-600">
+                {activities.filter(a => a.type === 'completed').length}
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Completed</div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Large: full lists, timestamps, and actions */}
-      {sizeCategory === "large" && (
-        <div className="space-y-4">
-          <div>
-            <h4 className="text-xs text-neutral-500 mb-2">Recent activity</h4>
-            <div className="space-y-3">
-              {activityLog.map((a) => (
-                <div key={a.id} className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-md flex items-center justify-center bg-blue-50 dark:bg-blue-900/30 text-blue-600">
-                    <ListTodo size={14} />
-                  </div>
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{a.text}</div>
-                    <div className="text-xs text-neutral-400">{a.time}</div>
-                  </div>
-                </div>
-              ))}
+            <div>
+              <div className="text-sm font-bold text-blue-600">
+                {Math.round(activities.reduce((sum, a) => sum + (a.timeSpent || 0), 0) / 60)}h
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Time Tracked</div>
             </div>
-          </div>
-
-          <div>
-            <h4 className="text-xs text-neutral-500 mb-2">Notes</h4>
-            <div className="space-y-3">
-              {notesLog.map((n) => (
-                <div key={n.id} className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-md flex items-center justify-center bg-green-50 dark:bg-green-900/30 text-green-600">
-                    <NotebookText size={14} />
-                  </div>
-                  <div className="text-sm text-neutral-900 dark:text-neutral-100">{n.text}</div>
-                </div>
-              ))}
+            <div>
+              <div className="text-sm font-bold text-green-600">
+                {new Set(activities.map(a => a.plan)).size}
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Projects</div>
             </div>
           </div>
         </div>

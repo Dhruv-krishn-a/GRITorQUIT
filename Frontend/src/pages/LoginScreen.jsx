@@ -71,62 +71,69 @@ const LoginScreen = ({ onLoginSuccess }) => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
+  
+  if (!username.trim() || !password) {
+    showMessage("Username and password are required");
+    return;
+  }
+
+  try {
+    setLoading(true);
+    setMessage(null);
+
+    // Animate shutter fully open with a timeout fallback
+    targetFrame.current = TOTAL_FRAMES;
     
-    if (!username.trim() || !password) {
-      showMessage("Username and password are required");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setMessage(null);
-
-      // Animate shutter fully open
-      targetFrame.current = TOTAL_FRAMES;
-      await new Promise((resolve) => {
+    // Wait for animation to complete or timeout after 2 seconds
+    await Promise.race([
+      new Promise((resolve) => {
         const check = setInterval(() => {
           if (frameIndex === TOTAL_FRAMES) {
             clearInterval(check);
             resolve();
           }
-        }, 10);
-      });
+        }, 16); // Check every frame (~60fps)
+      }),
+      new Promise((resolve) => setTimeout(resolve, 2000)) // Fallback timeout
+    ]);
 
-      const res = await axios.post(
-        `${BACKEND_URL}/api/auth/login`, 
-        { 
-          username: username.trim(), 
-          password 
-        },
-        { timeout: 10000 }
-      );
-      
-      const { token, username: returnedUsername, userId } = res.data;
+    const res = await axios.post(
+      `${BACKEND_URL}/api/auth/login`, 
+      { 
+        username: username.trim(), 
+        password 
+      },
+      { timeout: 10000 }
+    );
+    
+    const { token, username: returnedUsername, userId } = res.data;
 
-      if (token && onLoginSuccess) {
-        onLoginSuccess(token, returnedUsername || username.trim(), userId);
-        showMessage("Login successful! Redirecting...", false);
-        setTimeout(() => navigate("/dashboard"), 1000);
-      }
-    } catch (err) {
-      console.error("Login error:", err);
-      
-      let errorMessage = "Login failed";
-      if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      } else if (err.code === 'ECONNREFUSED') {
-        errorMessage = "Cannot connect to server. Please check if backend is running.";
-      } else if (err.code === 'NETWORK_ERROR') {
-        errorMessage = "Network error. Please check your connection.";
-      }
-      
-      showMessage(errorMessage);
-      targetFrame.current = 1;
-    } finally {
-      setLoading(false);
+    if (token && onLoginSuccess) {
+      onLoginSuccess(token, returnedUsername || username.trim(), userId);
+      showMessage("Login successful! Redirecting...", false);
+      setTimeout(() => navigate("/dashboard"), 1000);
     }
-  };
+  } catch (err) {
+    console.error("Login error:", err);
+    
+    let errorMessage = "Login failed";
+    if (err.response?.data?.message) {
+      errorMessage = err.response.data.message;
+    } else if (err.code === 'ECONNREFUSED') {
+      errorMessage = "Cannot connect to server. Please check if backend is running.";
+    } else if (err.code === 'NETWORK_ERROR') {
+      errorMessage = "Network error. Please check your connection.";
+    } else if (err.message?.includes('timeout')) {
+      errorMessage = "Request timeout. Please try again.";
+    }
+    
+    showMessage(errorMessage);
+    targetFrame.current = 1;
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="relative w-screen h-screen overflow-hidden">

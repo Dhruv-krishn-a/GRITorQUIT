@@ -11,9 +11,13 @@ router.use(protect);
 // Get all plans for the authenticated user
 router.get('/', async (req, res) => {
   try {
-    const plans = await Plan.find({ createdBy: req.user._id }).sort({ createdAt: -1 });
+    console.log("Fetching plans for user:", req.user._id); // Debug log
+    const plans = await Plan.find({
+      createdBy: req.user._id
+    }).sort({ createdAt: -1 });
     res.json(plans);
   } catch (error) {
+    console.error("Get plans error:", error);
     res.status(500).json({ message: error.message });
   }
 });

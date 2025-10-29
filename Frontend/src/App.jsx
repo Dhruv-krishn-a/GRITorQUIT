@@ -6,8 +6,8 @@ import SignupScreen from "./pages/SignupScreen";
 import Dashboard from "./pages/Dashboard";
 import TasksPage from "./pages/TaskPage";
 import PlanningPage from "./pages/PlanningPage";
-
 function App() {
+  
   const [token, setToken] = useState(localStorage.getItem("token") || null);
   const [username, setUsername] = useState(localStorage.getItem("username") || null);
   const [loading, setLoading] = useState(true);
@@ -85,7 +85,8 @@ function App() {
   }
 
   return (
-    // Remove the Router wrapper - it's already in main.jsx
+    
+      // Remove the Router wrapper - it's already in main.jsx
     <Routes>
       <Route 
         path="/login" 
@@ -150,6 +151,7 @@ function App() {
         } 
       />
     </Routes>
+    
   );
 }
 

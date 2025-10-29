@@ -1,4 +1,3 @@
-// src/pages/Dashboard.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Responsive, WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
@@ -13,16 +12,28 @@ import ProjectProgress from "../Components/Widgets/ProjectProgress";
 import TaskHeatmap from "../Components/Widgets/TaskHeatmap";
 import ActivityNotes from "../Components/Widgets/ActivityNotes";
 import MainLayout from "../MainLayout";
-import { Plus } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
+import { plansAPI } from "../Components/services/api";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 const LAYOUT_STORAGE_KEY = "grit_dashboard_layout_v3";
 
-// Update the component to accept username as a prop
 export default function Dashboard({ username, onLogout }) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [currentBreakpoint, setCurrentBreakpoint] = useState("lg");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [dashboardData, setDashboardData] = useState({
+    plans: [],
+    tasks: [],
+    stats: {
+      totalTimeSpent: { today: "0h 0m", week: "0h 0m", month: "0h 0m", total: "0h 0m" },
+      taskCompletion: { completed: 0, total: 0, percentage: 0 },
+      priorityDistribution: { high: 0, medium: 0, low: 0 },
+      recentActivity: []
+    }
+  });
 
   const breakpoints = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 };
   const cols = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 };
@@ -58,7 +69,122 @@ export default function Dashboard({ username, onLogout }) {
     return defaultLayouts;
   });
 
-  useEffect(() => setMounted(true), []);
+  // Fetch dashboard data
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      const plans = await plansAPI.getAll();
+      
+      // Extract all tasks from plans
+      const allTasks = [];
+      let totalTimeSpent = 0;
+      let completedTasks = 0;
+      let totalTasks = 0;
+      const priorityDistribution = { high: 0, medium: 0, low: 0 };
+      const recentActivity = [];
+
+      plans.forEach(plan => {
+        if (plan.tasks && Array.isArray(plan.tasks)) {
+          plan.tasks.forEach(task => {
+            const taskWithPlan = {
+              ...task,
+              id: task._id || Math.random().toString(36).substr(2, 9),
+              planTitle: plan.title,
+              planId: plan._id,
+              timeSpent: task.timeSpent || 0,
+              completedAt: task.completedAt || null
+            };
+            
+            allTasks.push(taskWithPlan);
+            
+            // Calculate statistics
+            totalTimeSpent += task.timeSpent || 0;
+            totalTasks++;
+            if (task.completed) completedTasks++;
+            
+            // Priority distribution
+            if (task.priority) {
+              const priority = task.priority.toLowerCase();
+              if (priorityDistribution[priority] !== undefined) {
+                priorityDistribution[priority]++;
+              }
+            }
+            
+            // Recent activity (last 7 days)
+            if (task.completedAt) {
+              const completedDate = new Date(task.completedAt);
+              const weekAgo = new Date();
+              weekAgo.setDate(weekAgo.getDate() - 7);
+              
+              if (completedDate > weekAgo) {
+                recentActivity.push({
+                  type: 'completed',
+                  task: task.title,
+                  plan: plan.title,
+                  timestamp: task.completedAt,
+                  timeSpent: task.timeSpent || 0
+                });
+              }
+            }
+          });
+        }
+      });
+
+      // Calculate time statistics
+      const today = new Date();
+      const weekAgo = new Date(today);
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const monthAgo = new Date(today);
+      monthAgo.setDate(monthAgo.getDate() - 30);
+
+      const formatTimeStats = (minutes) => {
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+      };
+
+      // For now, we'll use total time for all periods (you can enhance this with date filtering)
+      const timeStats = {
+        today: formatTimeStats(totalTimeSpent), // This should be filtered by today
+        week: formatTimeStats(totalTimeSpent),  // This should be filtered by week
+        month: formatTimeStats(totalTimeSpent), // This should be filtered by month
+        total: formatTimeStats(totalTimeSpent)
+      };
+
+      const taskCompletion = {
+        completed: completedTasks,
+        total: totalTasks,
+        percentage: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+      };
+
+      // Sort recent activity by timestamp
+      recentActivity.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+      setDashboardData({
+        plans,
+        tasks: allTasks,
+        stats: {
+          totalTimeSpent: timeStats,
+          taskCompletion,
+          priorityDistribution,
+          recentActivity: recentActivity.slice(0, 10) // Last 10 activities
+        }
+      });
+
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      setError('Failed to load dashboard data: ' + (err.message || 'Unknown error'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setMounted(true);
+    fetchDashboardData();
+  }, []);
 
   useEffect(() => {
     try {
@@ -70,7 +196,72 @@ export default function Dashboard({ username, onLogout }) {
 
   const resetLayout = () => setLayouts(defaultLayouts);
 
-  // WidgetCard component - FIXED VERSION
+  // Process data for specific widgets
+  const getTodayTasks = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return dashboardData.tasks.filter(task => {
+      const taskDate = new Date(task.date);
+      return taskDate.toDateString() === today.toDateString() && !task.completed;
+    });
+  };
+
+  const getUpcomingDeadlines = () => {
+    const today = new Date();
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    
+    return dashboardData.tasks
+      .filter(task => {
+        const taskDate = new Date(task.date);
+        return taskDate > today && taskDate <= nextWeek && !task.completed;
+      })
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .slice(0, 5); // Top 5 upcoming
+  };
+
+  const getHighPriorityTasks = () => {
+    return dashboardData.tasks
+      .filter(task => task.priority?.toLowerCase() === 'high' && !task.completed)
+      .slice(0, 5); // Top 5 high priority
+  };
+
+  const getSevenDayOverview = () => {
+    const days = [];
+    const today = new Date();
+    
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + i);
+      
+      const dayTasks = dashboardData.tasks.filter(task => {
+        const taskDate = new Date(task.date);
+        return taskDate.toDateString() === date.toDateString();
+      });
+      
+      days.push({
+        date: date.toDateString(),
+        tasks: dayTasks.length,
+        completed: dayTasks.filter(t => t.completed).length
+      });
+    }
+    
+    return days;
+  };
+
+  const getTaskHeatmapData = () => {
+    // This would typically be more complex time-based data
+    // For now, we'll create a simple distribution by priority and status
+    return {
+      high: dashboardData.tasks.filter(t => t.priority?.toLowerCase() === 'high').length,
+      medium: dashboardData.tasks.filter(t => t.priority?.toLowerCase() === 'medium').length,
+      low: dashboardData.tasks.filter(t => t.priority?.toLowerCase() === 'low').length,
+      completed: dashboardData.tasks.filter(t => t.completed).length,
+      pending: dashboardData.tasks.filter(t => !t.completed).length
+    };
+  };
+
+  // WidgetCard component
   const WidgetCard = ({ title, children }) => {
     const ref = useRef(null);
     const [size, setSize] = useState({ width: 0, height: 0 });
@@ -80,7 +271,6 @@ export default function Dashboard({ username, onLogout }) {
       const el = ref.current;
       
       const measure = () => {
-        // Get the actual content area dimensions (excluding padding)
         const contentRect = el.getBoundingClientRect();
         setSize({ 
           width: contentRect.width, 
@@ -96,7 +286,6 @@ export default function Dashboard({ username, onLogout }) {
       return () => ro.disconnect();
     }, []);
 
-    // Calculate isCompact based on actual content area
     const isCompact = size.width > 0 && size.width < 400;
 
     const childWithProps = React.isValidElement(children)
@@ -126,34 +315,72 @@ export default function Dashboard({ username, onLogout }) {
     );
   };
 
+  if (loading) {
+    return (
+      <MainLayout username={username} onLogout={onLogout}>
+        <div className="flex justify-center items-center min-h-screen bg-[var(--bg-primary)]">
+          <div className="text-[var(--text-primary)] text-lg flex items-center gap-3">
+            <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            Loading dashboard...
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
   return (
     <MainLayout username={username} onLogout={onLogout}>
-      <div className="min-h-screen w-full bg-gradient-to-br from-gray-900 via-gray-950 to-black text-gray-100 px-4 sm:px-8 py-8">
+      <div className="min-h-screen w-full bg-[var(--bg-primary)] text-[var(--text-primary)] px-4 sm:px-8 py-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
           <div className="flex-1">
             <h1 className="text-3xl md:text-4xl font-extrabold mb-1 text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 to-purple-300">
               Hello, {username || "User"}!
             </h1>
-            <p className="text-sm text-gray-400">Edit layout to drag/resize widgets. When finished, toggle off to lock interactions.</p>
+            <p className="text-sm text-gray-400">
+              {dashboardData.tasks.length} tasks across {dashboardData.plans.length} plans • 
+              {dashboardData.stats.taskCompletion.percentage}% completed
+            </p>
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsEditMode((s) => !s)}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition ${isEditMode ? "bg-indigo-600 hover:bg-indigo-500" : "bg-white/5 hover:bg-white/6"}`}
-            >
-              {isEditMode ? "Exit Edit" : "Edit Layout"}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={fetchDashboardData}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-[var(--hover-bg)] text-[var(--text-primary)] hover:bg-[var(--border-color)] transition-colors"
+              >
+                <RefreshCw size={16} />
+                Refresh
+              </button>
 
-            <button onClick={resetLayout} className="px-3 py-2 rounded-lg text-sm font-medium bg-white/5 hover:bg-white/6">
-              Reset Layout
-            </button>
+              <button
+                onClick={() => setIsEditMode((s) => !s)}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
+                  isEditMode 
+                    ? "bg-[var(--accent-color)] hover:opacity-90 text-white" 
+                    : "bg-[var(--hover-bg)] text-[var(--text-primary)] hover:bg-[var(--border-color)]"
+                }`}
+              >
+                {isEditMode ? "Exit Edit" : "Edit Layout"}
+              </button>
 
-            <button title="Quick add" className="hidden lg:inline-flex px-3 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-indigo-600 to-purple-600">
-              <Plus size={16} />
-            </button>
+              <button 
+                onClick={resetLayout} 
+                className="px-3 py-2 rounded-lg text-sm font-medium bg-[var(--hover-bg)] text-[var(--text-primary)] hover:bg-[var(--border-color)]"
+              >
+                Reset Layout
+              </button>
+            </div>
           </div>
         </div>
+
+        {error && (
+          <div className="mb-6 bg-red-900/50 border border-red-700 text-red-200 px-6 py-4 rounded-xl flex items-center justify-between">
+            <span>{error}</span>
+            <button onClick={() => setError('')} className="text-red-300 hover:text-white">
+              ×
+            </button>
+          </div>
+        )}
 
         {mounted ? (
           <ResponsiveGridLayout
@@ -175,62 +402,79 @@ export default function Dashboard({ username, onLogout }) {
           >
             <div key="prioritization">
               <WidgetCard title="Prioritization Focus">
-                <PrioritizationFocus />
+                <PrioritizationFocus 
+                  highPriorityTasks={getHighPriorityTasks()}
+                  priorityDistribution={dashboardData.stats.priorityDistribution}
+                />
               </WidgetCard>
             </div>
 
             <div key="overview">
               <WidgetCard title="7-Day Overview">
-                <SevenDayOverview />
+                <SevenDayOverview 
+                  weekData={getSevenDayOverview()}
+                  totalTasks={dashboardData.tasks.length}
+                />
               </WidgetCard>
             </div>
 
             <div key="today">
               <WidgetCard title="Today's Tasks">
-                <TodayTasks />
+                <TodayTasks 
+                  tasks={getTodayTasks()}
+                  totalTasks={dashboardData.tasks.length}
+                />
               </WidgetCard>
             </div>
 
             <div key="time">
               <WidgetCard title="Total Time Spent">
-                <TotalTimeSpend />
+                <TotalTimeSpend 
+                  stats={dashboardData.stats.totalTimeSpent}
+                  recentActivity={dashboardData.stats.recentActivity}
+                />
               </WidgetCard>
             </div>
 
             <div key="deadlines">
               <WidgetCard title="Upcoming Deadlines">
-                <UpcomingDeadlines />
+                <UpcomingDeadlines 
+                  tasks={getUpcomingDeadlines()}
+                  totalUpcoming={dashboardData.tasks.filter(t => !t.completed && new Date(t.date) > new Date()).length}
+                />
               </WidgetCard>
             </div>
 
             <div key="projects">
               <WidgetCard title="Project Progress">
-                <ProjectProgress />
+                <ProjectProgress 
+                  plans={dashboardData.plans}
+                  completionStats={dashboardData.stats.taskCompletion}
+                />
               </WidgetCard>
             </div>
 
             <div key="heatmap">
               <WidgetCard title="Task Heatmap">
-                <TaskHeatmap />
+                <TaskHeatmap 
+                  heatmapData={getTaskHeatmapData()}
+                  totalTasks={dashboardData.tasks.length}
+                />
               </WidgetCard>
             </div>
 
             <div key="notes">
               <WidgetCard title="Activity Notes">
-                <ActivityNotes />
+                <ActivityNotes 
+                  activities={dashboardData.stats.recentActivity}
+                  totalActivities={dashboardData.stats.recentActivity.length}
+                />
               </WidgetCard>
             </div>
           </ResponsiveGridLayout>
         ) : (
           <div className="text-gray-400">Loading layout…</div>
         )}
-
-        <button
-          className="fixed bottom-6 right-6 flex lg:hidden items-center justify-center w-14 h-14 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg transition-all z-50"
-          aria-label="Add new item"
-        >
-          <Plus size={26} />
-        </button>
       </div>
     </MainLayout>
   );
