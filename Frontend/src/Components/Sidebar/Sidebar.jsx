@@ -2,7 +2,7 @@ import {
   LayoutDashboard,
   CheckSquare,
   Calendar,
-  BarChart2,
+  BarChart3,
   Settings,
   ChevronsLeft,
   LogOut,
@@ -71,16 +71,27 @@ function NavItem({ item, collapsed }) {
 export default function Sidebar({ username, onLogout }) {
   const [collapsed, setCollapsed] = useState(false);
 
+  // Fixed navItems array - consistent structure
   const navItems = [
     {
       name: "Dashboard",
       path: "/dashboard",
       icon: <LayoutDashboard size={20} />,
     },
-    { name: "Tasks", path: "/tasks", icon: <CheckSquare size={20} /> },
-    { name: "Planner", path: "/planner", icon: <Calendar size={20} />,
+    { 
+      name: "Tasks", 
+      path: "/tasks", 
+      icon: <CheckSquare size={20} /> 
     },
-    { name: "Analytics", path: "/analytics", icon: <BarChart2 size={20} />,
+    { 
+      name: "Planner", 
+      path: "/planner", 
+      icon: <Calendar size={20} />
+    },
+    { 
+      name: "Analytics", 
+      path: "/analytics", 
+      icon: <BarChart3 size={20} />
     },
   ];
 
@@ -143,7 +154,7 @@ export default function Sidebar({ username, onLogout }) {
         </div>
       </div>
 
-      {/* Nav Items */}
+      {/* Nav Items - FIXED: Added key prop */}
       <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
         {navItems.map((item) => (
           <NavItem key={item.name} item={item} collapsed={collapsed} />

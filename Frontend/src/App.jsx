@@ -1,18 +1,18 @@
 // src/App.jsx
 import React, { useState, useEffect } from "react";
-import { Routes, Route, Navigate } from "react-router-dom"; // Remove HashRouter import
+import { Routes, Route, Navigate } from "react-router-dom";
 import LoginScreen from "./pages/LoginScreen";
 import SignupScreen from "./pages/SignupScreen";
 import Dashboard from "./pages/Dashboard";
 import TasksPage from "./pages/TaskPage";
 import PlanningPage from "./pages/PlanningPage";
+import AnalyticsPage from "./pages/AnalyticsPage"; // Make sure this import exists
+
 function App() {
-  
   const [token, setToken] = useState(localStorage.getItem("token") || null);
   const [username, setUsername] = useState(localStorage.getItem("username") || null);
   const [loading, setLoading] = useState(true);
 
-  // Check if token exists and validate it on app start
   useEffect(() => {
     const checkAuth = async () => {
       const storedToken = localStorage.getItem("token");
@@ -75,7 +75,6 @@ function App() {
     return children;
   };
 
-  // Show loading spinner while checking authentication
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -85,8 +84,6 @@ function App() {
   }
 
   return (
-    
-      // Remove the Router wrapper - it's already in main.jsx
     <Routes>
       <Route 
         path="/login" 
@@ -127,6 +124,7 @@ function App() {
           </ProtectedRoute>
         }
       />
+      
       <Route
         path="/planner"
         element={
@@ -135,6 +133,17 @@ function App() {
           </ProtectedRoute>
         }
       />
+      
+      {/* FIXED: Correct spelling and point to AnalyticsPage */}
+      <Route
+        path="/analytics"
+        element={
+          <ProtectedRoute>
+            <AnalyticsPage username={username} onLogout={handleLogout} />
+          </ProtectedRoute>
+        }
+      />
+      
       {/* Default route */}
       <Route 
         path="/" 
@@ -151,7 +160,6 @@ function App() {
         } 
       />
     </Routes>
-    
   );
 }
 

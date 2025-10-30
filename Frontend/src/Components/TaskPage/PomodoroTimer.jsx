@@ -1,5 +1,5 @@
-// Frontend/src/Components/TaskPage/PomodoroTimer.jsx
-import React, { useState, useEffect } from 'react';
+//Frontend/src/Components/TaskPage/PomodoroTimer.jsx
+import React, { useState } from 'react';
 import { Play, Square, RotateCcw, Clock, Target } from 'lucide-react';
 
 const PomodoroTimer = ({
@@ -15,47 +15,29 @@ const PomodoroTimer = ({
   onSwitchToBreak,
   FOCUS_TIME,
   BREAK_TIME,
-  tasks = []
+  tasks
 }) => {
   const [selectedTaskId, setSelectedTaskId] = useState(null);
-  const [currentTask, setCurrentTask] = useState(activeTask);
-
-  useEffect(() => {
-    if (activeTask) {
-      setCurrentTask(activeTask);
-      setSelectedTaskId(activeTask.id);
-    }
-  }, [activeTask]);
 
   const currentTime = timerType === 'focus' ? FOCUS_TIME : BREAK_TIME;
-  const remainingTime = Math.max(0, currentTime - elapsedTime);
-  const progress = currentTime > 0 ? (elapsedTime / currentTime) * 100 : 0;
+  const remainingTime = currentTime - elapsedTime;
+  const progress = (elapsedTime / currentTime) * 100;
 
   const minutes = Math.floor(remainingTime / 60);
   const seconds = remainingTime % 60;
 
-  const handleStart = async () => {
+  const handleStart = () => {
     if (!selectedTaskId && timerType === 'focus') {
       alert('Please select a task for focus time');
       return;
     }
 
-    const task = tasks.find(t => t.id === selectedTaskId || t._id === selectedTaskId);
+    const task = tasks.find(t => t.id === selectedTaskId);
     if (task) {
-      setCurrentTask(task);
-      await onStartTimer(task, timerType);
+      onStartTimer(task, timerType);
     } else if (timerType === 'break') {
-      await onStartTimer({ id: 'break', title: 'Break Time' }, 'break');
+      onStartTimer({ id: 'break', title: 'Break Time' }, 'break');
     }
-  };
-
-  const handleStop = async () => {
-    await onStopTimer();
-  };
-
-  const handleReset = () => {
-    onResetTimer();
-    setCurrentTask(null);
   };
 
   const getTimerColor = () => {
@@ -69,11 +51,11 @@ const PomodoroTimer = ({
 
   const getProgressColor = () => {
     if (timerType === 'focus') {
-      if (progress > 75) return 'from-red-500 to-red-600';
-      if (progress > 50) return 'from-orange-500 to-orange-600';
-      return 'from-green-500 to-green-600';
+      if (progress > 75) return 'bg-red-500';
+      if (progress > 50) return 'bg-orange-500';
+      return 'bg-green-500';
     }
-    return 'from-blue-500 to-blue-600';
+    return 'bg-blue-500';
   };
 
   return (
@@ -89,23 +71,19 @@ const PomodoroTimer = ({
               <div className="text-gray-400 text-sm uppercase">
                 {timerType === 'focus' ? 'Focus Time' : 'Break Time'}
               </div>
-              {currentTask && timerType === 'focus' && (
-                <div className="text-gray-500 text-xs mt-1 truncate max-w-[180px]">
-                  {currentTask.title}
-                </div>
-              )}
+              <div className="text-gray-500 text-xs mt-1">
+                Pomodoro {pomodoroCount + 1}
+              </div>
             </div>
           </div>
           
           {/* Progress Ring */}
-          <div className="absolute inset-0 rounded-full border-4 border-transparent">
-            <div 
-              className={`w-full h-full rounded-full bg-gradient-to-r ${getProgressColor()} transition-all duration-1000 ease-linear`}
-              style={{
-                clipPath: `conic-gradient(transparent 0%, transparent ${100 - progress}%, currentColor ${100 - progress}%, currentColor 100%)`
-              }}
-            />
-          </div>
+          <div 
+            className="absolute inset-0 rounded-full border-4 border-transparent"
+            style={{
+              background: `conic-gradient(${getProgressColor().replace('bg-', '')} ${progress}%, transparent 0%)`
+            }}
+          />
         </div>
 
         {/* Controls and Info */}
@@ -147,7 +125,7 @@ const PomodoroTimer = ({
               >
                 <option value="">Choose a task...</option>
                 {tasks.map(task => (
-                  <option key={task.id || task._id} value={task.id || task._id}>
+                  <option key={task.id} value={task.id}>
                     {task.title} {task.completedPomodoros > 0 && `(${task.completedPomodoros}🍅)`}
                   </option>
                 ))}
@@ -168,7 +146,7 @@ const PomodoroTimer = ({
               </button>
             ) : (
               <button
-                onClick={handleStop}
+                onClick={onStopTimer}
                 className="flex items-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
               >
                 <Square size={20} />
@@ -177,7 +155,7 @@ const PomodoroTimer = ({
             )}
             
             <button
-              onClick={handleReset}
+              onClick={onResetTimer}
               className="flex items-center gap-2 px-4 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
             >
               <RotateCcw size={20} />
@@ -196,15 +174,6 @@ const PomodoroTimer = ({
               <span>{Math.floor((pomodoroCount * FOCUS_TIME) / 60)}min focused</span>
             </div>
           </div>
-
-          {/* Current Session Info */}
-          {isRunning && currentTask && (
-            <div className="p-3 bg-gray-700/50 rounded-lg border border-gray-600">
-              <div className="text-sm text-gray-300">
-                Currently working on: <span className="font-medium text-white">{currentTask.title}</span>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

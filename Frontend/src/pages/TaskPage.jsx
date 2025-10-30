@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+// TaskPage.jsx
+import React, { useState, useEffect, useCallback } from 'react';
 import MainLayout from '../MainLayout';
 import Toolbar from '../Components/TaskPage/Toolbar';
 import TaskList from '../Components/TaskPage/TaskList';
@@ -6,7 +7,9 @@ import AddTaskModal from '../Components/TaskPage/AddTaskModal';
 import Fab from '../Components/TaskPage/Fab';
 import QuickStats from '../Components/TaskPage/QuickStats';
 import DailyTimeTracker from '../Components/TaskPage/DailyTimeTracker';
+import PomodoroTimer from '../Components/TaskPage/PomodoroTimer';
 import { plansAPI } from '../Components/services/api';
+import { useTimer } from '../Components/hooks/useTimer';
 
 export default function TaskPage({ username, onLogout }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -26,48 +29,80 @@ export default function TaskPage({ username, onLogout }) {
   const [dailyTime, setDailyTime] = useState(0);
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [sortBy, setSortBy] = useState('date');
-  const [elapsedTime, setElapsedTime] = useState(0); // NEW: Track elapsed time
+  const [showPomodoro, setShowPomodoro] = useState(false);
 
-  // Timer effect to update elapsed time every second
-  useEffect(() => {
-    let interval;
-    if (activeTimer) {
-      interval = setInterval(() => {
-        setElapsedTime(Math.floor((Date.now() - activeTimer.startTime) / 1000 / 60));
-      }, 1000); // Update every second
-    } else {
-      setElapsedTime(0);
+  // Timer functionality
+  const {
+    isRunning,
+    elapsedTime,
+    timerType,
+    pomodoroCount,
+    startTimer,
+    stopTimer,
+    resetTimer,
+    switchToFocus,
+    switchToBreak,
+    FOCUS_TIME,
+    BREAK_TIME
+  } = useTimer(
+    // onTimeUpdate
+    (currentElapsed) => {
+      if (activeTimer) {
+        setActiveTimer(prev => ({
+          ...prev,
+          elapsedTime: currentElapsed
+        }));
+      }
+    },
+    // onPomodoroComplete
+    (newCount) => {
+      if (activeTimer) {
+        handlePomodoroComplete(activeTimer.taskId, newCount);
+      }
     }
-    
-    return () => clearInterval(interval);
-  }, [activeTimer]);
+  );
 
-  // Fetch tasks from all plans
-  const fetchTasks = async () => {
+  // Fetch tasks from all plans with proper error handling
+  // ---- MODIFIED THIS FUNCTION ----
+  const fetchTasks = useCallback(async (isRefresh = false) => {
     try {
-      setLoading(true);
+      // Only set loading on the *initial* load, not on refreshes
+      if (!isRefresh) {
+        setLoading(true);
+      }
+      setError('');
       const plans = await plansAPI.getAll();
       
-      // Extract and categorize tasks from all plans
       const allTasks = [];
+      let todayTotalTime = 0;
       
       plans.forEach(plan => {
         if (plan.tasks && Array.isArray(plan.tasks)) {
           plan.tasks.forEach(task => {
-            allTasks.push({
+            const taskWithPlan = {
               ...task,
               id: task._id || Math.random().toString(36).substr(2, 9),
               planTitle: plan.title,
-              planId: plan._id,
-              // Ensure time tracking fields exist
+              planId: plan._id, 
               timeSpent: task.timeSpent || 0,
+              completedPomodoros: task.completedPomodoros || 0,
+              pomodoroTarget: task.pomodoroTarget || 4,
               completedAt: task.completedAt || null
-            });
+            };
+            
+            allTasks.push(taskWithPlan);
+            
+            // Calculate today's time
+            const taskDate = new Date(task.date);
+            const today = new Date();
+            if (taskDate.toDateString() === today.toDateString()) {
+              todayTotalTime += task.timeSpent || 0;
+            }
           });
         }
       });
 
-      // Categorize tasks by date
+      // Categorize tasks with safety checks
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
@@ -95,23 +130,21 @@ export default function TaskPage({ username, onLogout }) {
       };
 
       setTasks(categorizedTasks);
-      calculateDailyTime(categorizedTasks.today);
+      setDailyTime(todayTotalTime);
     } catch (err) {
       console.error('Error fetching tasks:', err);
-      setError('Failed to load tasks');
+      setError('Failed to load tasks. Please try refreshing the page.');
     } finally {
-      setLoading(false);
+      // Only set loading on the *initial* load
+      if (!isRefresh) {
+        setLoading(false);
+      }
     }
-  };
-
-  const calculateDailyTime = (todayTasks) => {
-    const totalTime = todayTasks.reduce((sum, task) => sum + (task.timeSpent || 0), 0);
-    setDailyTime(totalTime);
-  };
+  }, []); // Empty dependency array is correct here
 
   useEffect(() => {
     fetchTasks();
-  }, []);
+  }, [fetchTasks]);
 
   const openModal = (task = null) => {
     setEditingTask(task);
@@ -121,23 +154,25 @@ export default function TaskPage({ username, onLogout }) {
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingTask(null);
-    fetchTasks();
+    fetchTasks(true); // <-- MODIFIED: Pass true for refresh
   };
 
   const handleTaskUpdate = async (planId, taskId, updates) => {
     try {
+      console.log('Updating task:', { planId, taskId, updates });
+      
       // If task is being completed, set completion time and stop any active timer
       if (updates.completed && !updates.completedAt) {
         updates.completedAt = new Date().toISOString();
         
         // Stop timer if this task was being tracked
         if (activeTimer && activeTimer.taskId === taskId) {
-          setActiveTimer(null);
+          await handleStopTimer();
         }
       }
 
       await plansAPI.updateTask(planId, taskId, updates);
-      fetchTasks();
+      await fetchTasks(true); // <-- MODIFIED: Pass true for refresh
     } catch (err) {
       console.error('Error updating task:', err);
       setError('Failed to update task');
@@ -152,63 +187,119 @@ export default function TaskPage({ username, onLogout }) {
     try {
       // Stop timer if this task was being tracked
       if (activeTimer && activeTimer.taskId === taskId) {
-        setActiveTimer(null);
+        await handleStopTimer();
       }
 
       const plan = await plansAPI.getById(planId);
       const updatedTasks = plan.tasks.filter(task => task._id !== taskId);
       await plansAPI.update(planId, { tasks: updatedTasks });
-      fetchTasks();
+      await fetchTasks(true); // <-- MODIFIED: Pass true for refresh
     } catch (err) {
       console.error('Error deleting task:', err);
       setError('Failed to delete task');
     }
   };
 
-  const handleStartTimer = (task) => {
+  const handleStartTimer = async (task, timerType = 'focus') => {
     // Stop any existing timer
-    if (activeTimer) {
-      handleStopTimer();
+    if (isRunning) {
+      await handleStopTimer();
     }
 
     setActiveTimer({
       taskId: task.id,
       taskTitle: task.title,
       planId: task.planId,
-      startTime: Date.now()
+      startTime: Date.now(),
+      elapsedTime: 0,
+      timerType: timerType
     });
+
+    // Start the timer
+    if (timerType === 'focus') {
+      switchToFocus();
+    } else {
+      switchToBreak();
+    }
+    startTimer();
   };
 
   const handleStopTimer = async () => {
-    if (!activeTimer) return;
+    if (!activeTimer || !isRunning) return;
 
-    const timeSpent = Math.floor((Date.now() - activeTimer.startTime) / 1000 / 60); // Convert to minutes
-    const task = findTaskById(activeTimer.taskId);
+    const timeSpentMinutes = Math.floor(elapsedTime / 60);
     
-    if (task) {
-      const updatedTimeSpent = (task.timeSpent || 0) + timeSpent;
-      await handleTaskUpdate(activeTimer.planId, activeTimer.taskId, {
-        timeSpent: updatedTimeSpent
-      });
+    if (timeSpentMinutes > 0) {
+      const task = findTaskById(activeTimer.taskId);
+      
+      if (task) {
+        const updatedTimeSpent = (task.timeSpent || 0) + timeSpentMinutes;
+        
+        // Create time entry
+        const timeEntry = {
+          startTime: new Date(activeTimer.startTime),
+          endTime: new Date(),
+          duration: timeSpentMinutes,
+          type: activeTimer.timerType
+        };
+
+        try {
+          await plansAPI.updateTaskTime(activeTimer.planId, activeTimer.taskId, {
+            timeSpent: updatedTimeSpent,
+            timeEntry: timeEntry
+          });
+        } catch (err) {
+          console.error('Error saving time entry:', err);
+          setError('Failed to save time data');
+        }
+      }
     }
 
+    stopTimer();
     setActiveTimer(null);
-    setElapsedTime(0); // Reset elapsed time
+    resetTimer();
+  };
+
+  const handlePomodoroComplete = async (taskId, newCount) => {
+    const task = findTaskById(taskId);
+    if (task) {
+      try {
+        await plansAPI.updateTaskTime(task.planId, taskId, {
+          completedPomodoros: newCount
+        });
+        fetchTasks(true); // <-- MODIFIED: Pass true for refresh
+      } catch (err) {
+        console.error('Error updating pomodoro count:', err);
+      }
+    }
   };
 
   const findTaskById = (taskId) => {
-    const allTasks = [...tasks.overdue, ...tasks.today, ...tasks.upcoming, ...tasks.all, ...tasks.completed];
+    const allTasks = [
+      ...(tasks.overdue || []),
+      ...(tasks.today || []),
+      ...(tasks.upcoming || []),
+      ...(tasks.all || []),
+      ...(tasks.completed || [])
+    ];
     return allTasks.find(task => task.id === taskId);
   };
 
-  // Enhanced filtering and sorting
+  const formatTime = (minutes) => {
+    if (!minutes) return '0m';
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+  };
+
+  // Enhanced filtering and sorting with safety checks
   const getFilteredTasks = () => {
     let filteredTasks = tasks[activeView] || [];
     
     // Apply search filter
     if (searchQuery) {
       filteredTasks = filteredTasks.filter(task =>
-        task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        task.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         task.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         task.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
       );
@@ -229,25 +320,18 @@ export default function TaskPage({ username, onLogout }) {
           return (priorityOrder[b.priority?.toLowerCase()] || 0) - (priorityOrder[a.priority?.toLowerCase()] || 0);
         
         case 'title':
-          return a.title.localeCompare(b.title);
+          return (a.title || '').localeCompare(b.title || '');
         
         case 'time':
           return (b.timeSpent || 0) - (a.timeSpent || 0);
         
         case 'date':
         default:
-          return new Date(a.date) - new Date(b.date);
+          return new Date(a.date || 0) - new Date(b.date || 0);
       }
     });
     
     return filteredTasks;
-  };
-
-  const formatTime = (minutes) => {
-    if (!minutes) return '0m';
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
   };
 
   if (loading) {
@@ -291,21 +375,56 @@ export default function TaskPage({ username, onLogout }) {
                 
                 {/* Quick Stats */}
                 <QuickStats tasks={tasks} activeView={activeView} />
+
+                {/* Pomodoro Toggle */}
+                <button
+                  onClick={() => setShowPomodoro(!showPomodoro)}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition-colors flex items-center gap-2"
+                >
+                  <span>🍅</span>
+                  {showPomodoro ? 'Hide Timer' : 'Show Timer'}
+                </button>
               </div>
             </div>
           </header>
 
+          {/* Error Display */}
           {error && (
             <div className="mb-6 bg-red-900/50 border border-red-700 text-red-200 px-6 py-4 rounded-xl flex items-center justify-between">
-              <span>{error}</span>
-              <button onClick={() => setError('')} className="text-red-300 hover:text-white">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                <span>{error}</span>
+              </div>
+              <button 
+                onClick={() => setError('')} 
+                className="text-red-300 hover:text-white p-1"
+              >
                 ×
               </button>
             </div>
           )}
 
+          {/* Pomodoro Timer */}
+          {showPomodoro && (
+            <PomodoroTimer
+              isRunning={isRunning}
+              elapsedTime={elapsedTime}
+              timerType={timerType}
+              pomodoroCount={pomodoroCount}
+              activeTask={activeTimer}
+              onStartTimer={handleStartTimer}
+              onStopTimer={handleStopTimer}
+              onResetTimer={resetTimer}
+              onSwitchToFocus={switchToFocus}
+              onSwitchToBreak={switchToBreak}
+              FOCUS_TIME={FOCUS_TIME}
+              BREAK_TIME={BREAK_TIME}
+              tasks={tasks.today || []}
+            />
+          )}
+
           {/* Active Timer Display */}
-          {activeTimer && (
+          {activeTimer && isRunning && (
             <div className="mb-6 bg-blue-900/50 border border-blue-700 rounded-xl p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -313,11 +432,15 @@ export default function TaskPage({ username, onLogout }) {
                   <div>
                     <p className="text-blue-200 text-sm">Currently timing:</p>
                     <p className="text-white font-medium">{activeTimer.taskTitle}</p>
+                    <p className="text-blue-300 text-xs">
+                      {timerType === 'focus' ? 'Focus Time' : 'Break Time'} • 
+                      Pomodoro {pomodoroCount + 1}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-blue-200 font-mono text-lg">
-                    {formatTime(elapsedTime)} {/* Use elapsedTime state instead of direct calculation */}
+                    {Math.floor(elapsedTime / 60)}:{(elapsedTime % 60).toString().padStart(2, '0')}
                   </span>
                   <button
                     onClick={handleStopTimer}
@@ -355,6 +478,7 @@ export default function TaskPage({ username, onLogout }) {
                 onStopTimer={handleStopTimer}
                 activeTimer={activeTimer}
                 formatTime={formatTime}
+                isTimerRunning={isRunning}
               />
             </div>
           </div>
@@ -364,7 +488,7 @@ export default function TaskPage({ username, onLogout }) {
         <AddTaskModal 
           isOpen={isModalOpen} 
           onClose={closeModal}
-          onTaskAdded={fetchTasks}
+          onTaskAdded={() => fetchTasks(true)} // <-- MODIFIED
           editingTask={editingTask}
         />
 

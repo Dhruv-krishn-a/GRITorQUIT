@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Responsive, WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -12,11 +12,86 @@ import ProjectProgress from "../Components/Widgets/ProjectProgress";
 import TaskHeatmap from "../Components/Widgets/TaskHeatmap";
 import ActivityNotes from "../Components/Widgets/ActivityNotes";
 import MainLayout from "../MainLayout";
-import { Plus, RefreshCw } from "lucide-react";
-import { plansAPI } from "../Components/services/api";
+import { Plus, RefreshCw, Target, Clock, Calendar, Zap } from "lucide-react";
+import { plansAPI, analyticsAPI } from "../Components/services/api";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
-const LAYOUT_STORAGE_KEY = "grit_dashboard_layout_v3";
+const LAYOUT_STORAGE_KEY = "grit_dashboard_layout_v6";
+
+// Move stable functions outside component to prevent recreation
+const calculateTimeStatsFromPlans = (plans) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const weekAgo = new Date(today);
+  weekAgo.setDate(today.getDate() - 7);
+  
+  const monthAgo = new Date(today);
+  monthAgo.setMonth(today.getMonth() - 1);
+
+  let totalTimeSpent = 0;
+  let todayTimeSpent = 0;
+  let weekTimeSpent = 0;
+  let monthTimeSpent = 0;
+  let totalPomodoros = 0;
+  let todayPomodoros = 0;
+  let weekPomodoros = 0;
+  let monthPomodoros = 0;
+
+  plans.forEach(plan => {
+    if (plan.tasks && Array.isArray(plan.tasks)) {
+      plan.tasks.forEach(task => {
+        const taskTime = task.timeSpent || 0;
+        const taskPomodoros = task.completedPomodoros || 0;
+
+        totalTimeSpent += taskTime;
+        totalPomodoros += taskPomodoros;
+
+        if (task.completedAt) {
+          const completedDate = new Date(task.completedAt);
+          
+          if (completedDate >= today) {
+            todayTimeSpent += taskTime;
+            todayPomodoros += taskPomodoros;
+          }
+          if (completedDate >= weekAgo) {
+            weekTimeSpent += taskTime;
+            weekPomodoros += taskPomodoros;
+          }
+          if (completedDate >= monthAgo) {
+            monthTimeSpent += taskTime;
+            monthPomodoros += taskPomodoros;
+          }
+        } else {
+          weekTimeSpent += taskTime;
+          weekPomodoros += taskPomodoros;
+        }
+      });
+    }
+  });
+
+  const formatTime = (minutes) => {
+    if (!minutes || minutes === 0) return "0m";
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+  };
+
+  return {
+    timeStats: {
+      today: formatTime(todayTimeSpent),
+      week: formatTime(weekTimeSpent),
+      month: formatTime(monthTimeSpent),
+      total: formatTime(totalTimeSpent)
+    },
+    pomodoroStats: {
+      completed: totalPomodoros,
+      weekly: weekPomodoros,
+      daily: todayPomodoros,
+      monthly: monthPomodoros
+    }
+  };
+};
 
 export default function Dashboard({ username, onLogout }) {
   const [isEditMode, setIsEditMode] = useState(false);
@@ -24,13 +99,15 @@ export default function Dashboard({ username, onLogout }) {
   const [currentBreakpoint, setCurrentBreakpoint] = useState("lg");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [timeRange, setTimeRange] = useState('week');
   const [dashboardData, setDashboardData] = useState({
     plans: [],
     tasks: [],
     stats: {
-      totalTimeSpent: { today: "0h 0m", week: "0h 0m", month: "0h 0m", total: "0h 0m" },
+      totalTimeSpent: { today: "0m", week: "0m", month: "0m", total: "0m" },
       taskCompletion: { completed: 0, total: 0, percentage: 0 },
       priorityDistribution: { high: 0, medium: 0, low: 0 },
+      pomodoroStats: { completed: 0, weekly: 0, daily: 0, monthly: 0 },
       recentActivity: []
     }
   });
@@ -69,17 +146,41 @@ export default function Dashboard({ username, onLogout }) {
     return defaultLayouts;
   });
 
-  // Fetch dashboard data
-  const fetchDashboardData = async () => {
+  // Stable fetchDashboardData function with proper dependencies
+  const fetchDashboardData = useCallback(async (period = 'week') => {
     try {
       setLoading(true);
       setError('');
       
+      // Fetch plans data
       const plans = await plansAPI.getAll();
       
-      // Extract all tasks from plans
+      let timeAnalytics;
+      let dashboardStats;
+      
+      // Try to fetch analytics data
+      try {
+        timeAnalytics = await analyticsAPI.getTimeStatistics(period);
+        dashboardStats = await analyticsAPI.getDashboardStats();
+      } catch (analyticsError) {
+        console.warn('Analytics API not available, calculating from plans:', analyticsError.message);
+        timeAnalytics = calculateTimeStatsFromPlans(plans);
+        
+        // Calculate dashboard stats from plans
+        const totalTasks = plans.reduce((sum, plan) => sum + (plan.tasks?.length || 0), 0);
+        const completedTasks = plans.reduce((sum, plan) => sum + (plan.tasks?.filter(task => task.completed).length || 0), 0);
+        
+        dashboardStats = {
+          totalTasks,
+          completedTasks,
+          totalTime: timeAnalytics.timeStats.total,
+          productivityScore: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+          upcomingDeadlines: []
+        };
+      }
+      
+      // Extract all tasks from plans and calculate stats
       const allTasks = [];
-      let totalTimeSpent = 0;
       let completedTasks = 0;
       let totalTasks = 0;
       const priorityDistribution = { high: 0, medium: 0, low: 0 };
@@ -89,18 +190,18 @@ export default function Dashboard({ username, onLogout }) {
         if (plan.tasks && Array.isArray(plan.tasks)) {
           plan.tasks.forEach(task => {
             const taskWithPlan = {
-              ...task,
-              id: task._id || Math.random().toString(36).substr(2, 9),
+              ...task.toObject ? task.toObject() : task,
+              id: task._id || task.id || Math.random().toString(36).substr(2, 9),
               planTitle: plan.title,
-              planId: plan._id,
+              planId: plan._id || plan.id,
               timeSpent: task.timeSpent || 0,
+              completedPomodoros: task.completedPomodoros || 0,
               completedAt: task.completedAt || null
             };
             
             allTasks.push(taskWithPlan);
             
             // Calculate statistics
-            totalTimeSpent += task.timeSpent || 0;
             totalTasks++;
             if (task.completed) completedTasks++;
             
@@ -113,47 +214,49 @@ export default function Dashboard({ username, onLogout }) {
             }
             
             // Recent activity (last 7 days)
+            const weekAgo = new Date();
+            weekAgo.setDate(weekAgo.getDate() - 7);
+            
             if (task.completedAt) {
               const completedDate = new Date(task.completedAt);
-              const weekAgo = new Date();
-              weekAgo.setDate(weekAgo.getDate() - 7);
-              
               if (completedDate > weekAgo) {
                 recentActivity.push({
                   type: 'completed',
                   task: task.title,
                   plan: plan.title,
                   timestamp: task.completedAt,
-                  timeSpent: task.timeSpent || 0
+                  timeSpent: task.timeSpent || 0,
+                  pomodoros: task.completedPomodoros || 0
                 });
               }
+            }
+
+            // Add time tracking activities
+            if (task.timeEntries && Array.isArray(task.timeEntries)) {
+              task.timeEntries.forEach(entry => {
+                const entryDate = new Date(entry.startTime);
+                if (entryDate > weekAgo) {
+                  recentActivity.push({
+                    type: 'time_tracked',
+                    task: task.title,
+                    plan: plan.title,
+                    timestamp: entry.startTime,
+                    timeSpent: entry.duration,
+                    sessionType: entry.type
+                  });
+                }
+              });
             }
           });
         }
       });
 
-      // Calculate time statistics
-      const today = new Date();
-      const weekAgo = new Date(today);
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      const monthAgo = new Date(today);
-      monthAgo.setDate(monthAgo.getDate() - 30);
-
-      const formatTimeStats = (minutes) => {
-        const hours = Math.floor(minutes / 60);
-        const mins = minutes % 60;
-        return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
-      };
-
-      // For now, we'll use total time for all periods (you can enhance this with date filtering)
-      const timeStats = {
-        today: formatTimeStats(totalTimeSpent), // This should be filtered by today
-        week: formatTimeStats(totalTimeSpent),  // This should be filtered by week
-        month: formatTimeStats(totalTimeSpent), // This should be filtered by month
-        total: formatTimeStats(totalTimeSpent)
-      };
-
-      const taskCompletion = {
+      // Use dashboard stats from API or calculate locally
+      const taskCompletion = dashboardStats.totalTasks > 0 ? {
+        completed: dashboardStats.completedTasks,
+        total: dashboardStats.totalTasks,
+        percentage: Math.round((dashboardStats.completedTasks / dashboardStats.totalTasks) * 100)
+      } : {
         completed: completedTasks,
         total: totalTasks,
         percentage: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
@@ -166,10 +269,12 @@ export default function Dashboard({ username, onLogout }) {
         plans,
         tasks: allTasks,
         stats: {
-          totalTimeSpent: timeStats,
+          totalTimeSpent: timeAnalytics.timeStats,
           taskCompletion,
           priorityDistribution,
-          recentActivity: recentActivity.slice(0, 10) // Last 10 activities
+          pomodoroStats: timeAnalytics.pomodoroStats,
+          recentActivity: recentActivity.slice(0, 15),
+          dashboardStats
         }
       });
 
@@ -179,12 +284,12 @@ export default function Dashboard({ username, onLogout }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     setMounted(true);
-    fetchDashboardData();
-  }, []);
+    fetchDashboardData(timeRange);
+  }, [timeRange, fetchDashboardData]);
 
   useEffect(() => {
     try {
@@ -196,73 +301,101 @@ export default function Dashboard({ username, onLogout }) {
 
   const resetLayout = () => setLayouts(defaultLayouts);
 
+  const handleTimeRangeChange = useCallback((newRange, analyticsData) => {
+    setTimeRange(newRange);
+    if (analyticsData) {
+      setDashboardData(prev => ({
+        ...prev,
+        stats: {
+          ...prev.stats,
+          totalTimeSpent: analyticsData.timeStats,
+          pomodoroStats: analyticsData.pomodoroStats
+        }
+      }));
+    }
+  }, []);
+
   // Process data for specific widgets
-  const getTodayTasks = () => {
+  const getTodayTasks = useCallback(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return dashboardData.tasks.filter(task => {
+      if (!task.date) return false;
       const taskDate = new Date(task.date);
       return taskDate.toDateString() === today.toDateString() && !task.completed;
     });
-  };
+  }, [dashboardData.tasks]);
 
-  const getUpcomingDeadlines = () => {
+  const getUpcomingDeadlines = useCallback(() => {
     const today = new Date();
     const nextWeek = new Date(today);
     nextWeek.setDate(nextWeek.getDate() + 7);
     
     return dashboardData.tasks
       .filter(task => {
+        if (!task.date || task.completed) return false;
         const taskDate = new Date(task.date);
-        return taskDate > today && taskDate <= nextWeek && !task.completed;
+        return taskDate > today && taskDate <= nextWeek;
       })
       .sort((a, b) => new Date(a.date) - new Date(b.date))
-      .slice(0, 5); // Top 5 upcoming
-  };
+      .slice(0, 5);
+  }, [dashboardData.tasks]);
 
-  const getHighPriorityTasks = () => {
+  const getHighPriorityTasks = useCallback(() => {
     return dashboardData.tasks
       .filter(task => task.priority?.toLowerCase() === 'high' && !task.completed)
-      .slice(0, 5); // Top 5 high priority
-  };
+      .slice(0, 5);
+  }, [dashboardData.tasks]);
 
-  const getSevenDayOverview = () => {
+  const getSevenDayOverview = useCallback(() => {
     const days = [];
     const today = new Date();
     
     for (let i = 0; i < 7; i++) {
       const date = new Date(today);
-      date.setDate(today.getDate() + i);
+      date.setDate(today.getDate() - i);
       
       const dayTasks = dashboardData.tasks.filter(task => {
+        if (!task.date) return false;
         const taskDate = new Date(task.date);
         return taskDate.toDateString() === date.toDateString();
       });
       
-      days.push({
+      const dayTime = dashboardData.tasks
+        .filter(task => {
+          if (task.completedAt) {
+            const completedDate = new Date(task.completedAt);
+            return completedDate.toDateString() === date.toDateString();
+          }
+          return false;
+        })
+        .reduce((sum, task) => sum + (task.timeSpent || 0), 0);
+      
+      days.unshift({
         date: date.toDateString(),
         tasks: dayTasks.length,
-        completed: dayTasks.filter(t => t.completed).length
+        completed: dayTasks.filter(t => t.completed).length,
+        timeSpent: dayTime
       });
     }
     
     return days;
-  };
+  }, [dashboardData.tasks]);
 
-  const getTaskHeatmapData = () => {
-    // This would typically be more complex time-based data
-    // For now, we'll create a simple distribution by priority and status
+  const getTaskHeatmapData = useCallback(() => {
     return {
       high: dashboardData.tasks.filter(t => t.priority?.toLowerCase() === 'high').length,
       medium: dashboardData.tasks.filter(t => t.priority?.toLowerCase() === 'medium').length,
       low: dashboardData.tasks.filter(t => t.priority?.toLowerCase() === 'low').length,
       completed: dashboardData.tasks.filter(t => t.completed).length,
-      pending: dashboardData.tasks.filter(t => !t.completed).length
+      pending: dashboardData.tasks.filter(t => !t.completed).length,
+      withTime: dashboardData.tasks.filter(t => (t.timeSpent || 0) > 0).length,
+      withPomodoros: dashboardData.tasks.filter(t => (t.completedPomodoros || 0) > 0).length
     };
-  };
+  }, [dashboardData.tasks]);
 
   // WidgetCard component
-  const WidgetCard = ({ title, children }) => {
+  const WidgetCard = React.useCallback(({ title, children }) => {
     const ref = useRef(null);
     const [size, setSize] = useState({ width: 0, height: 0 });
 
@@ -299,7 +432,7 @@ export default function Dashboard({ username, onLogout }) {
     return (
       <div
         ref={ref}
-        className="h-full w-full bg-white dark:bg-[#141414] rounded-xl shadow-md transition-all duration-200"
+        className="h-full w-full bg-white dark:bg-[#141414] rounded-xl shadow-md transition-all duration-200 hover:shadow-lg"
       >
         <div
           className={`drag-handle flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 ${isEditMode ? "cursor-move" : "cursor-default"}`}
@@ -313,7 +446,71 @@ export default function Dashboard({ username, onLogout }) {
         </div>
       </div>
     );
-  };
+  }, [isEditMode]);
+
+  // Enhanced header stats
+  const HeaderStats = useCallback(() => {
+    const formatTime = (timeStr) => {
+      if (!timeStr || timeStr === "0m") return "0m";
+      return timeStr;
+    };
+
+    return (
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="flex items-center gap-4 p-4 bg-blue-500/10 rounded-xl border border-blue-500/20">
+          <div className="p-2 bg-blue-500/20 rounded-lg">
+            <Clock className="text-blue-400" size={24} />
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-blue-400">
+              {formatTime(dashboardData.stats.totalTimeSpent[timeRange])}
+            </div>
+            <div className="text-sm text-blue-300 capitalize">
+              {timeRange === 'week' ? 'This Week' : 
+               timeRange === 'month' ? 'This Month' : 
+               'This Quarter'}
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-4 p-4 bg-green-500/10 rounded-xl border border-green-500/20">
+          <div className="p-2 bg-green-500/20 rounded-lg">
+            <Target className="text-green-400" size={24} />
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-green-400">
+              {dashboardData.stats.pomodoroStats.weekly || 0}
+            </div>
+            <div className="text-sm text-green-300">Pomodoros This Week</div>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-4 p-4 bg-purple-500/10 rounded-xl border border-purple-500/20">
+          <div className="p-2 bg-purple-500/20 rounded-lg">
+            <Zap className="text-purple-400" size={24} />
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-purple-400">
+              {dashboardData.stats.taskCompletion.percentage}%
+            </div>
+            <div className="text-sm text-purple-300">Completion Rate</div>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-4 p-4 bg-orange-500/10 rounded-xl border border-orange-500/20">
+          <div className="p-2 bg-orange-500/20 rounded-lg">
+            <Calendar className="text-orange-400" size={24} />
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-orange-400">
+              {dashboardData.tasks.length}
+            </div>
+            <div className="text-sm text-orange-300">Total Tasks</div>
+          </div>
+        </div>
+      </div>
+    );
+  }, [dashboardData.stats, dashboardData.tasks.length, timeRange]);
 
   if (loading) {
     return (
@@ -345,7 +542,7 @@ export default function Dashboard({ username, onLogout }) {
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-3">
               <button
-                onClick={fetchDashboardData}
+                onClick={() => fetchDashboardData(timeRange)}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-[var(--hover-bg)] text-[var(--text-primary)] hover:bg-[var(--border-color)] transition-colors"
               >
                 <RefreshCw size={16} />
@@ -373,9 +570,15 @@ export default function Dashboard({ username, onLogout }) {
           </div>
         </div>
 
+        {/* Enhanced Header Stats */}
+        <HeaderStats />
+
         {error && (
           <div className="mb-6 bg-red-900/50 border border-red-700 text-red-200 px-6 py-4 rounded-xl flex items-center justify-between">
-            <span>{error}</span>
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+              <span>{error}</span>
+            </div>
             <button onClick={() => setError('')} className="text-red-300 hover:text-white">
               ×
             </button>
@@ -405,6 +608,7 @@ export default function Dashboard({ username, onLogout }) {
                 <PrioritizationFocus 
                   highPriorityTasks={getHighPriorityTasks()}
                   priorityDistribution={dashboardData.stats.priorityDistribution}
+                  pomodoroStats={dashboardData.stats.pomodoroStats}
                 />
               </WidgetCard>
             </div>
@@ -428,10 +632,12 @@ export default function Dashboard({ username, onLogout }) {
             </div>
 
             <div key="time">
-              <WidgetCard title="Total Time Spent">
+              <WidgetCard title="Time Analytics">
                 <TotalTimeSpend 
                   stats={dashboardData.stats.totalTimeSpent}
                   recentActivity={dashboardData.stats.recentActivity}
+                  pomodoroStats={dashboardData.stats.pomodoroStats}
+                  onTimeRangeChange={handleTimeRangeChange}
                 />
               </WidgetCard>
             </div>

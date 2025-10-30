@@ -1,3 +1,4 @@
+// server.js
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -5,6 +6,7 @@ import express from "express";
 import cors from "cors";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from 'url';
 
 // Database
 import connectDB from "./config/database.js";
@@ -14,6 +16,7 @@ import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import plansRoutes from "./routes/plans.js";
 import uploadRoutes from "./routes/upload.js";
+import analyticsRoutes from "./routes/analytics.js";
 
 const app = express();
 
@@ -26,19 +29,23 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Create uploads directory if it doesn't exist
-const uploadsDir = "./uploads";
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const uploadsDir = path.join(__dirname, 'uploads');
+
 if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir);
+  fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
 // Serve uploaded files statically
-app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+app.use("/uploads", express.static(uploadsDir));
 
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/plans", plansRoutes);
 app.use("/api/upload", uploadRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 // Default route
 app.get("/", (req, res) => {
@@ -76,12 +83,4 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-});       
-// Debug: Check if models are loading
-console.log('Checking models...');
-import Plan from "./models/Plan.js";
-import User from "./models/User.js";
-
-console.log('Plan model:', typeof Plan);
-console.log('Plan.find type:', typeof Plan.find);
-console.log('User model:', typeof User);                                                                                                                                                              
+});
