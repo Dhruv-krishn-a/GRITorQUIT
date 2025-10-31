@@ -34,6 +34,7 @@ export default function SevenDayOverview({
     return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   }, []);
 
+  // --- THEME --- (Semantic colors are OK)
   const getDayColor = useCallback((completionRate) => {
     if (completionRate >= 80) return "text-green-400";
     if (completionRate >= 60) return "text-blue-400";
@@ -41,6 +42,7 @@ export default function SevenDayOverview({
     return "text-red-400";
   }, []);
 
+  // --- THEME --- (Semantic colors are OK)
   const getBarColor = useCallback((completionRate) => {
     if (completionRate >= 80) return "bg-green-500";
     if (completionRate >= 60) return "bg-blue-500";
@@ -72,24 +74,33 @@ export default function SevenDayOverview({
 
   if (size === "compact") {
     return (
-      <div className="space-y-4">
+      // --- RESPONSIVE --- Added h-full and flex-col
+      <div className="space-y-4 h-full flex flex-col">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Calendar size={16} className="text-purple-500" />
-            <h3 className="text-sm font-semibold">7-Day Overview</h3>
+            {/* --- THEME --- */}
+            <Calendar size={16} className="text-[var(--accent-color)]" />
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">7-Day Overview</h3>
           </div>
-          <div className="text-xs text-gray-400">
+          {/* --- THEME --- */}
+          <div className="text-xs text-[var(--text-secondary)]">
             {weeklyTotals.completed}/{weeklyTotals.tasks} completed
           </div>
         </div>
 
-        <div className="space-y-2">
+        {/* --- RESPONSIVE --- This list now scrolls if widget is too short */}
+        <div 
+          className="space-y-2 flex-1 overflow-y-auto"
+          style={{ maxHeight: containerHeight - 50 }} // 50px = approx header height
+        >
           {animatedData.map((day, index) => (
             <div key={index} className="flex items-center justify-between text-xs">
-              <span className="text-gray-400 w-16 truncate">
+              {/* --- THEME --- */}
+              <span className="text-[var(--text-secondary)] w-16 truncate">
                 {formatDate(day.date).split(' ')[0]}
               </span>
-              <div className="flex-1 mx-2 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+              {/* --- THEME --- */}
+              <div className="flex-1 mx-2 bg-[var(--hover-bg)] rounded-full h-2">
                 <div 
                   className={`h-2 rounded-full transition-all duration-500 ${getBarColor(day.completionRate)}`}
                   style={{ width: `${Math.min(day.completionRate, 100)}%` }}
@@ -105,43 +116,49 @@ export default function SevenDayOverview({
     );
   }
 
+  // --- RESPONSIVE --- Added h-full and flex-col for better layout control
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 h-full flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Calendar size={20} className="text-purple-500" />
+          {/* --- THEME --- */}
+          <Calendar size={20} className="text-[var(--accent-color)]" />
           <div>
-            <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+            {/* --- THEME --- */}
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">
               7-Day Overview
             </h3>
-            <p className="text-xs text-neutral-400">
+            <p className="text-xs text-[var(--text-secondary)]">
               {weeklyTotals.tasks} total tasks this week
             </p>
           </div>
         </div>
         
         <div className="text-right">
-          <div className="text-lg font-bold text-purple-500">
+          {/* --- THEME --- */}
+          <div className="text-lg font-bold text-[var(--accent-color)]">
             {weeklyTotals.completed}/{weeklyTotals.tasks}
           </div>
-          <div className="text-xs text-neutral-400">Completed</div>
+          {/* --- THEME --- */}
+          <div className="text-xs text-[var(--text-secondary)]">Completed</div>
         </div>
       </div>
 
       {/* Weekly Stats */}
+      {/* --- THEME --- Replaced dark:/light: classes with theme-agnostic opacity */}
       <div className="grid grid-cols-3 gap-3 text-center">
-        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+        <div className="p-3 bg-blue-500/10 rounded-lg">
           <div className="text-lg font-bold text-blue-600">{weeklyTotals.tasks}</div>
           <div className="text-xs text-blue-500">Total Tasks</div>
         </div>
-        <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+        <div className="p-3 bg-green-500/10 rounded-lg">
           <div className="text-lg font-bold text-green-600">
             {weeklyTotals.tasks > 0 ? Math.round((weeklyTotals.completed / weeklyTotals.tasks) * 100) : 0}%
           </div>
           <div className="text-xs text-green-500">Completion</div>
         </div>
-        <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+        <div className="p-3 bg-orange-500/10 rounded-lg">
           <div className="text-lg font-bold text-orange-600">
             {formatTime(weeklyTotals.timeSpent)}
           </div>
@@ -149,95 +166,109 @@ export default function SevenDayOverview({
         </div>
       </div>
 
-      {/* Daily Breakdown */}
-      <div className="space-y-3">
+      {/* --- RESPONSIVE --- This container will take remaining space and its child will scroll */}
+      <div className="flex-1 flex flex-col min-h-0 space-y-3">
         <div className="flex items-center justify-between text-sm">
-          <span className="font-medium text-neutral-900 dark:text-neutral-100">
+          {/* --- THEME --- */}
+          <span className="font-medium text-[var(--text-primary)]">
             Daily Progress
           </span>
-          <span className="text-xs text-neutral-400">
+          <span className="text-xs text-[var(--text-secondary)]">
             Avg: {weeklyTotals.tasks > 0 ? Math.round(weeklyTotals.tasks / 7) : 0} tasks/day
           </span>
         </div>
 
-        {animatedData.map((day, index) => (
-          <div
-            key={index}
-            className={`p-3 rounded-lg border transition-all cursor-pointer ${
-              selectedDay === index
-                ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800'
-                : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-            }`}
-            onClick={() => setSelectedDay(selectedDay === index ? null : index)}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                {formatDate(day.date)}
-              </span>
-              <div className="flex items-center gap-2">
-                <span className={`text-sm font-bold ${getDayColor(day.completionRate)}`}>
-                  {Math.round(day.completionRate)}%
+        {/* --- RESPONSIVE --- This div now scrolls internally */}
+        <div className="flex-1 overflow-y-auto space-y-3">
+          {animatedData.map((day, index) => (
+            <div
+              key={index}
+              // --- THEME ---
+              className={`p-3 rounded-lg border transition-all cursor-pointer ${
+                selectedDay === index
+                  ? 'bg-[var(--accent-color)]/10 border-[var(--accent-color)]/30'
+                  : 'bg-[var(--bg-secondary)] border-[var(--border-color)] hover:border-[var(--text-secondary)]/30'
+              }`}
+              onClick={() => setSelectedDay(selectedDay === index ? null : index)}
+            >
+              <div className="flex items-center justify-between mb-2">
+                {/* --- THEME --- */}
+                <span className="text-sm font-medium text-[var(--text-primary)]">
+                  {formatDate(day.date)}
                 </span>
-                {day.timeSpent > 0 && (
-                  <div className="flex items-center gap-1 text-xs text-gray-500">
-                    <Clock size={12} />
-                    {formatTime(day.timeSpent)}
-                  </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm font-bold ${getDayColor(day.completionRate)}`}>
+                    {Math.round(day.completionRate)}%
+                  </span>
+                  {day.timeSpent > 0 && (
+                    // --- THEME ---
+                    <div className="flex items-center gap-1 text-xs text-[var(--text-secondary)]">
+                      <Clock size={12} />
+                      {formatTime(day.timeSpent)}
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* --- THEME --- */}
+              <div className="flex items-center justify-between text-xs text-[var(--text-secondary)] mb-2">
+                <span>{day.completed}/{day.tasks} tasks completed</span>
+                {day.timePerTask > 0 && (
+                  <span>Avg: {Math.round(day.timePerTask)}m/task</span>
                 )}
               </div>
-            </div>
+              
+              {/* --- THEME --- */}
+              <div className="w-full bg-[var(--hover-bg)] rounded-full h-2">
+                <div 
+                  className={`h-2 rounded-full transition-all duration-1000 ${getBarColor(day.completionRate)}`}
+                  style={{ width: `${Math.min(day.completionRate, 100)}%` }}
+                />
+              </div>
 
-            <div className="flex items-center justify-between text-xs text-neutral-400 mb-2">
-              <span>{day.completed}/{day.tasks} tasks completed</span>
-              {day.timePerTask > 0 && (
-                <span>Avg: {Math.round(day.timePerTask)}m/task</span>
+              {/* Expanded view when selected */}
+              {selectedDay === index && (
+                // --- THEME ---
+                <div className="mt-3 pt-3 border-t border-[var(--border-color)] space-y-2">
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    {/* --- THEME --- */}
+                    <div className="flex items-center gap-1 text-[var(--text-primary)]">
+                      <CheckCircle2 size={12} className="text-green-500" />
+                      <span>{day.completed} completed</span>
+                    </div>
+                    {/* --- THEME --- */}
+                    <div className="flex items-center gap-1 text-[var(--text-primary)]">
+                      <Clock size={12} className="text-blue-500" />
+                      <span>{formatTime(day.timeSpent)} spent</span>
+                    </div>
+                  </div>
+                  {day.timeSpent > 0 && day.completed > 0 && (
+                    // --- THEME ---
+                    <div className="text-xs text-[var(--text-secondary)]">
+                      Efficiency: {Math.round(day.timeSpent / day.completed)}m per task
+                    </div>
+                  )}
+                </div>
               )}
             </div>
-
-            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-              <div 
-                className={`h-2 rounded-full transition-all duration-1000 ${getBarColor(day.completionRate)}`}
-                style={{ width: `${Math.min(day.completionRate, 100)}%` }}
-              />
-            </div>
-
-            {/* Expanded view when selected */}
-            {selectedDay === index && (
-              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2">
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="flex items-center gap-1">
-                    <CheckCircle2 size={12} className="text-green-500" />
-                    <span>{day.completed} completed</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Clock size={12} className="text-blue-500" />
-                    <span>{formatTime(day.timeSpent)} spent</span>
-                  </div>
-                </div>
-                {day.timeSpent > 0 && day.completed > 0 && (
-                  <div className="text-xs text-gray-500">
-                    Efficiency: {Math.round(day.timeSpent / day.completed)}m per task
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       {/* Weekly Trend */}
       {weeklyTotals.tasks > 0 && (
-        <div className="p-3 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+        // --- THEME ---
+        <div className="p-3 bg-[var(--accent-color)]/10 rounded-lg border border-[var(--accent-color)]/30">
           <div className="flex items-center justify-between text-sm mb-2">
-            <span className="font-medium text-purple-600 dark:text-purple-400">
+            <span className="font-medium text-[var(--accent-color)]">
               Weekly Trend
             </span>
-            <span className="text-purple-500 text-xs flex items-center gap-1">
+            <span className="text-[var(--accent-color)] text-xs flex items-center gap-1">
               <TrendingUp size={12} />
               {weeklyTotals.completed > 0 ? 'Positive' : 'Getting Started'}
             </span>
           </div>
-          <div className="text-xs text-purple-500">
+          <div className="text-xs text-[var(--accent-color)]/80">
             {weeklyTotals.completed} tasks completed this week • {formatTime(weeklyTotals.timeSpent)} total focus time
           </div>
         </div>

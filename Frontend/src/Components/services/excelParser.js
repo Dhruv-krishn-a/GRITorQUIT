@@ -1,4 +1,4 @@
-// Excel parsing utilities
+// Frontend/src/Components/services/excelParser.js
 export const excelParser = {
   validateExcelFile: (file) => {
     const validTypes = [

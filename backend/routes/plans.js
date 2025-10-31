@@ -71,18 +71,17 @@ router.put('/:id', async (req, res) => {
 });
 
 // Delete plan
-router.delete('/:id', async (req, res) => {
+// Backend route for deleting plans
+router.delete('/api/plans/:planId', async (req, res) => {
   try {
-    const plan = await Plan.findOneAndDelete({ 
-      _id: req.params.id, 
-      createdBy: req.user._id 
-    });
-    if (!plan) {
-      return res.status(404).json({ message: 'Plan not found' });
-    }
-    res.json({ message: 'Plan deleted successfully' });
+    const plan = await Plan.findByIdAndDelete(req.params.planId);
+    
+    // Also delete all tasks associated with this plan
+    await Task.deleteMany({ planId: req.params.planId });
+    
+    res.json({ message: 'Plan and associated tasks deleted successfully' });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ error: error.message });
   }
 });
 

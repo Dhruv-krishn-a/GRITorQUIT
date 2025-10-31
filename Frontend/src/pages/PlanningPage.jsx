@@ -82,6 +82,26 @@ const PlanningPage = ({ username, onLogout }) => {
     setTasks([]);
   };
 
+  const handleDeletePlan = async (planId) => {
+  if (!window.confirm('Are you sure you want to delete this plan? This will also delete all tasks associated with it.')) {
+    return;
+  }
+
+  try {
+    await plansAPI.delete(planId);
+    setPlans(prev => prev.filter(plan => (plan._id || plan.id) !== planId));
+    
+    // If the deleted plan was currently selected, go back to plans list
+    if (selectedPlan && (selectedPlan._id === planId || selectedPlan.id === planId)) {
+      setSelectedPlan(null);
+      setTasks([]);
+    }
+  } catch (err) {
+    console.error('handleDeletePlan error:', err);
+    setError('Failed to delete plan: ' + (err.message || err));
+  }
+  };
+
   const handleTaskToggle = async (taskId) => {
     if (!selectedPlan) return;
     try {
@@ -203,7 +223,12 @@ const PlanningPage = ({ username, onLogout }) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {Array.isArray(plans) && plans.length > 0 ? (
                     plans.map(plan => (
-                      <PlanCard key={plan._id || plan.id} plan={plan} onView={handleViewPlan} />
+                      <PlanCard 
+                        key={plan._id || plan.id} 
+                        plan={plan} 
+                        onView={handleViewPlan}
+                        onDelete={handleDeletePlan}  // Add this line
+                      />
                     ))
                   ) : (
                     <div className="col-span-full text-center text-gray-400 py-6">

@@ -18,42 +18,41 @@ export default function TotalTimeSpend({
   const [error, setError] = useState(null);
 
   // Fetch analytics data when timeRange changes
- // In TotalTimeSpend.jsx - Update the useEffect
-useEffect(() => {
-  const fetchAnalyticsData = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await analyticsAPI.getTimeStatistics(timeRange);
-      
-      if (data && data.timeStats) {
-        setAnalyticsData(data);
-        // Only call onTimeRangeChange if it's provided and we have new data
-        if (onTimeRangeChange) {
-          onTimeRangeChange(timeRange, data);
+  useEffect(() => {
+    const fetchAnalyticsData = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await analyticsAPI.getTimeStatistics(timeRange);
+        
+        if (data && data.timeStats) {
+          setAnalyticsData(data);
+          // Only call onTimeRangeChange if it's provided and we have new data
+          if (onTimeRangeChange) {
+            onTimeRangeChange(timeRange, data);
+          }
+        } else {
+          throw new Error('Invalid data format from server');
         }
-      } else {
-        throw new Error('Invalid data format from server');
+      } catch (err) {
+        console.error('Failed to fetch analytics:', err);
+        // More specific error messages
+        if (err.message.includes('Network Error') || err.message.includes('timeout')) {
+          setError('Cannot connect to server. Using local data.');
+        } else if (err.response?.status === 404) {
+          setError('Analytics feature not available yet. Using local data.');
+        } else {
+          setError('Failed to load time statistics. Using local data.');
+        }
+        
+        setAnalyticsData(null);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      console.error('Failed to fetch analytics:', err);
-      // More specific error messages
-      if (err.message.includes('Network Error') || err.message.includes('timeout')) {
-        setError('Cannot connect to server. Using local data.');
-      } else if (err.response?.status === 404) {
-        setError('Analytics feature not available yet. Using local data.');
-      } else {
-        setError('Failed to load time statistics. Using local data.');
-      }
-      
-      setAnalyticsData(null);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
 
-  fetchAnalyticsData();
-}, [timeRange]); // Remove onTimeRangeChange from dependencies to prevent loops
+    fetchAnalyticsData();
+  }, [timeRange]); // Remove onTimeRangeChange from dependencies to prevent loops
 
   const size = useMemo(() => {
     if (isCompact || (containerWidth > 0 && containerWidth < 360)) return "compact";
@@ -220,6 +219,7 @@ useEffect(() => {
     };
   }, [currentPomodoroStats, enhancedStats]);
 
+  // Semantic colors - these are OK to keep
   const getProgressColor = (percentage) => {
     if (percentage >= 90) return "bg-green-500";
     if (percentage >= 70) return "bg-blue-500";
@@ -228,7 +228,7 @@ useEffect(() => {
   };
 
   const getTrendColor = (trend) => {
-    if (!trend) return "text-gray-500";
+    if (!trend) return "text-[var(--text-secondary)]";
     return trend.startsWith('+') ? "text-green-500" : "text-red-500";
   };
 
@@ -255,11 +255,13 @@ useEffect(() => {
     const todayPercentage = calculatePercentage(today.minutes, today.goal);
     
     return (
-      <div className="bg-white dark:bg-[#141414] p-3 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+      // --- THEME ---
+      <div className="bg-[var(--bg-card)] p-3 rounded-xl shadow-md border border-[var(--border-color)]">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <Clock size={14} className="text-purple-500" />
-            <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+            {/* --- THEME --- */}
+            <Clock size={14} className="text-[var(--accent-color)]" />
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">
               {isLoading ? "Loading..." : "Time Today"}
             </h3>
           </div>
@@ -272,7 +274,8 @@ useEffect(() => {
             )}
             <button 
               onClick={handleRefresh}
-              className={`text-gray-400 hover:text-gray-600 transition-transform ${isLoading ? 'animate-spin' : 'hover:rotate-180'}`}
+              // --- THEME ---
+              className={`text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-transform ${isLoading ? 'animate-spin' : 'hover:rotate-180'}`}
               disabled={isLoading}
             >
               <RefreshCw size={12} />
@@ -280,11 +283,13 @@ useEffect(() => {
           </div>
         </div>
         
-        <div className="text-lg font-bold text-neutral-900 dark:text-neutral-100 mb-1">
+        {/* --- THEME --- */}
+        <div className="text-lg font-bold text-[var(--text-primary)] mb-1">
           {today.value}
         </div>
         
-        <div className="flex justify-between text-xs text-neutral-400 mb-2">
+        {/* --- THEME --- */}
+        <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
           <span>Today</span>
           {today.goal ? (
             <span>Goal: {formatMinutesToTime(today.goal)}</span>
@@ -294,7 +299,8 @@ useEffect(() => {
         </div>
         
         {today.goal && today.goal > 0 && (
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+          // --- THEME ---
+          <div className="w-full bg-[var(--hover-bg)] rounded-full h-2">
             <div 
               className={`h-2 rounded-full transition-all duration-1000 ${getProgressColor(todayPercentage)}`}
               style={{ width: `${todayPercentage}%` }}
@@ -302,7 +308,7 @@ useEffect(() => {
           </div>
         )}
         
-        {/* Pomodoro mini stats */}
+        {/* Pomodoro mini stats (Semantic color OK) */}
         {pomodoroInsights.daily > 0 && (
           <div className="flex items-center justify-between mt-2 text-xs text-orange-500">
             <div className="flex items-center gap-1">
@@ -313,6 +319,7 @@ useEffect(() => {
           </div>
         )}
 
+        {/* Error (Semantic color OK) */}
         {error && (
           <div className="mt-2 text-xs text-red-500 flex items-center gap-1">
             <AlertCircle size={10} />
@@ -325,11 +332,13 @@ useEffect(() => {
 
   if (size === "medium") {
     return (
-      <div className="bg-white dark:bg-[#141414] p-4 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+      // --- THEME ---
+      <div className="bg-[var(--bg-card)] p-4 rounded-xl shadow-md border border-[var(--border-color)]">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <Clock size={16} className="text-purple-500" />
-            <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+            {/* --- THEME --- */}
+            <Clock size={16} className="text-[var(--accent-color)]" />
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">
               {isLoading ? "Loading Time Data..." : "Time Tracking"}
             </h3>
           </div>
@@ -337,13 +346,15 @@ useEffect(() => {
           <div className="flex items-center gap-2">
             <button 
               onClick={handleRefresh}
-              className={`p-1 text-gray-400 hover:text-gray-600 rounded ${isLoading ? 'animate-spin' : 'hover:rotate-180'}`}
+              // --- THEME ---
+              className={`p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded ${isLoading ? 'animate-spin' : 'hover:rotate-180'}`}
               disabled={isLoading}
             >
               <RefreshCw size={14} />
             </button>
             
-            <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+            {/* --- THEME --- */}
+            <div className="flex gap-1 bg-[var(--hover-bg)] rounded-lg p-1">
               {['week', 'month', 'quarter'].map(range => (
                 <button
                   key={range}
@@ -351,8 +362,9 @@ useEffect(() => {
                   disabled={isLoading}
                   className={`px-2 py-1 text-xs rounded-md capitalize transition-all ${
                     timeRange === range 
-                      ? 'bg-purple-500 text-white' 
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                      // --- THEME ---
+                      ? 'bg-[var(--accent-color)] text-white' 
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                   } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {range}
@@ -368,17 +380,20 @@ useEffect(() => {
             const percentage = calculatePercentage(stat.minutes, stat.goal);
             
             return (
-              <div key={key} className="relative p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                <div className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
+              // --- THEME ---
+              <div key={key} className="relative p-3 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-color)]">
+                {/* --- THEME --- */}
+                <div className="text-lg font-bold text-[var(--text-primary)]">
                   {stat.value}
                 </div>
-                <div className="text-xs text-neutral-400 capitalize mb-2">
+                <div className="text-xs text-[var(--text-secondary)] capitalize mb-2">
                   {key === 'today' ? 'Today' : 'This Week'}
                 </div>
                 
                 <div className="flex items-center justify-between text-xs">
+                  {/* --- THEME --- */}
                   {stat.goal ? (
-                    <span className="text-gray-500">Goal: {formatMinutesToTime(stat.goal)}</span>
+                    <span className="text-[var(--text-secondary)]">Goal: {formatMinutesToTime(stat.goal)}</span>
                   ) : (
                     <span>&nbsp;</span>
                   )}
@@ -391,7 +406,8 @@ useEffect(() => {
                 </div>
                 
                 {stat.goal && stat.goal > 0 && (
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 mt-2">
+                  // --- THEME ---
+                  <div className="w-full bg-[var(--hover-bg)] rounded-full h-1.5 mt-2">
                     <div 
                       className={`h-1.5 rounded-full transition-all duration-1000 ${getProgressColor(percentage)}`}
                       style={{ width: `${percentage}%` }}
@@ -402,9 +418,11 @@ useEffect(() => {
             );
           })}
 
-          <div className="col-span-2 border-t border-neutral-200 dark:border-neutral-700 pt-3 mt-2">
+          {/* --- THEME --- */}
+          <div className="col-span-2 border-t border-[var(--border-color)] pt-3 mt-2">
             <div className="flex items-center justify-between mb-2">
-              <div className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+              {/* --- THEME --- */}
+              <div className="text-sm font-semibold text-[var(--text-primary)]">
                 {enhancedStats.month.value}
               </div>
               {enhancedStats.month.trend && (
@@ -414,21 +432,24 @@ useEffect(() => {
                 </div>
               )}
             </div>
-            <div className="text-xs text-neutral-400">This Month</div>
+            {/* --- THEME --- */}
+            <div className="text-xs text-[var(--text-secondary)]">This Month</div>
             
             {enhancedStats.month.goal && enhancedStats.month.goal > 0 && (
-              <div className="flex justify-between text-xs text-gray-500 mt-1">
+              // --- THEME ---
+              <div className="flex justify-between text-xs text-[var(--text-secondary)] mt-1">
                 <span>Goal: {formatMinutesToTime(enhancedStats.month.goal)}</span>
                 <span>{Math.round(calculatePercentage(enhancedStats.month.minutes, enhancedStats.month.goal))}%</span>
               </div>
             )}
           </div>
 
-          {/* Pomodoro Stats */}
+          {/* Pomodoro Stats (Theme-agnostic opacity) */}
           {pomodoroInsights.weekly > 0 && (
-            <div className="col-span-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg p-3 mt-2 border border-orange-200 dark:border-orange-800">
+            // --- THEME ---
+            <div className="col-span-2 bg-orange-500/10 rounded-lg p-3 mt-2 border border-orange-500/30">
               <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
+                <div className="flex items-center gap-2 text-orange-500">
                   <Target size={14} />
                   <span className="font-medium">Pomodoros</span>
                 </div>
@@ -440,8 +461,9 @@ useEffect(() => {
           )}
 
           {error && (
-            <div className="col-span-2 bg-red-50 dark:bg-red-900/20 rounded-lg p-2 mt-2 border border-red-200 dark:border-red-800">
-              <div className="text-xs text-red-600 dark:text-red-400 flex items-center gap-2">
+            // --- THEME ---
+            <div className="col-span-2 bg-red-500/10 rounded-lg p-2 mt-2 border border-red-500/30">
+              <div className="text-xs text-red-500 flex items-center gap-2">
                 <AlertCircle size={12} />
                 {error}
               </div>
@@ -453,17 +475,20 @@ useEffect(() => {
   }
 
   return (
-    <div className="bg-white dark:bg-[#141414] p-5 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+    // --- THEME ---
+    <div className="bg-[var(--bg-card)] p-5 rounded-xl shadow-md border border-[var(--border-color)]">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-            <Clock size={20} className="text-purple-500" />
+          {/* --- THEME --- */}
+          <div className="p-2 bg-[var(--accent-color)]/10 rounded-lg">
+            <Clock size={20} className="text-[var(--accent-color)]" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+            {/* --- THEME --- */}
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">
               Time Analytics {isLoading && "(Loading...)"}
             </h3>
-            <p className="text-xs text-neutral-400">
+            <p className="text-xs text-[var(--text-secondary)]">
               {timeRange === 'week' ? 'This Week' : 
                timeRange === 'month' ? 'This Month' : 
                'This Quarter'} Overview
@@ -474,7 +499,8 @@ useEffect(() => {
         <div className="flex items-center gap-3">
           <button 
             onClick={handleRefresh}
-            className={`p-2 text-gray-400 hover:text-gray-600 rounded-lg transition-transform ${
+            // --- THEME ---
+            className={`p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-lg transition-transform ${
               isLoading ? 'animate-spin' : 'hover:rotate-180'
             }`}
             disabled={isLoading}
@@ -483,7 +509,8 @@ useEffect(() => {
             <RefreshCw size={16} />
           </button>
           
-          <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+          {/* --- THEME --- */}
+          <div className="flex gap-1 bg-[var(--hover-bg)] rounded-lg p-1">
             {['week', 'month', 'quarter'].map(range => (
               <button
                 key={range}
@@ -491,8 +518,9 @@ useEffect(() => {
                 disabled={isLoading}
                 className={`px-3 py-1 text-xs rounded-md capitalize transition-all ${
                   timeRange === range 
-                    ? 'bg-purple-500 text-white' 
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                    // --- THEME ---
+                    ? 'bg-[var(--accent-color)] text-white' 
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 {range}
@@ -502,10 +530,11 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* Error Display */}
+      {/* Error Display (Theme-agnostic opacity) */}
       {error && (
-        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-          <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+        // --- THEME ---
+        <div className="mb-4 p-3 bg-red-500/10 rounded-lg border border-red-500/30">
+          <div className="flex items-center gap-2 text-sm text-red-500">
             <AlertCircle size={16} />
             {error}
           </div>
@@ -527,25 +556,30 @@ useEffect(() => {
           };
           
           return (
-            <div key={key} className="relative p-4 bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
+            // --- THEME ---
+            <div key={key} className="relative p-4 bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-color)] hover:shadow-md transition-shadow">
               <div className="flex justify-center mb-3">
-                <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                  <IconComponent size={16} className="text-purple-500" />
+                {/* --- THEME --- */}
+                <div className="p-2 bg-[var(--accent-color)]/10 rounded-lg">
+                  <IconComponent size={16} className="text-[var(--accent-color)]" />
                 </div>
               </div>
               
-              <div className="text-xl font-bold text-neutral-900 dark:text-neutral-100 mb-1">
+              {/* --- THEME --- */}
+              <div className="text-xl font-bold text-[var(--text-primary)] mb-1">
                 {stat.value}
               </div>
               
-              <div className="text-xs text-neutral-400 uppercase mb-3">
+              {/* --- THEME --- */}
+              <div className="text-xs text-[var(--text-secondary)] uppercase mb-3">
                 {labels[key]}
               </div>
 
               {stat.goal && stat.goal > 0 && (
                 <>
                   <div className="flex items-center justify-between text-xs mb-2">
-                    <span className="text-gray-500">Goal: {formatMinutesToTime(stat.goal)}</span>
+                    {/* --- THEME --- */}
+                    <span className="text-[var(--text-secondary)]">Goal: {formatMinutesToTime(stat.goal)}</span>
                     {stat.trend && (
                       <span className={`flex items-center gap-1 ${getTrendColor(stat.trend)}`}>
                         <TrendingUp size={10} />
@@ -554,14 +588,16 @@ useEffect(() => {
                     )}
                   </div>
                   
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                  {/* --- THEME --- */}
+                  <div className="w-full bg-[var(--hover-bg)] rounded-full h-2">
                     <div 
                       className={`h-2 rounded-full transition-all duration-1000 ${getProgressColor(percentage)}`}
                       style={{ width: `${percentage}%` }}
                     />
                   </div>
                   
-                  <div className="text-xs text-gray-500 mt-1 text-right">
+                  {/* --- THEME --- */}
+                  <div className="text-xs text-[var(--text-secondary)] mt-1 text-right">
                     {Math.round(percentage)}%
                   </div>
                 </>
@@ -572,32 +608,40 @@ useEffect(() => {
       </div>
 
       {/* Additional Insights */}
-      <div className="grid grid-cols-3 gap-4 text-center border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
+      {/* --- THEME --- */}
+      <div className="grid grid-cols-3 gap-4 text-center border-t border-[var(--border-color)] pt-4 mb-4">
         <div>
+          {/* Semantic colors OK */}
           <div className="text-sm font-bold text-blue-600">
             {formatMinutesToTime(additionalInsights.avgPerDay)}
           </div>
-          <div className="text-xs text-gray-500">Avg/Day</div>
+          {/* --- THEME --- */}
+          <div className="text-xs text-[var(--text-secondary)]">Avg/Day</div>
         </div>
         <div>
+          {/* Semantic colors OK */}
           <div className="text-sm font-bold text-green-600">
             {additionalInsights.efficiency}%
           </div>
-          <div className="text-xs text-gray-500">Efficiency</div>
+          {/* --- THEME --- */}
+          <div className="text-xs text-[var(--text-secondary)]">Efficiency</div>
         </div>
         <div>
+          {/* Semantic colors OK */}
           <div className="text-sm font-bold text-orange-600">
             {additionalInsights.activeDays}
           </div>
-          <div className="text-xs text-gray-500">Active Days</div>
+          {/* --- THEME --- */}
+          <div className="text-xs text-[var(--text-secondary)]">Active Days</div>
         </div>
       </div>
 
-      {/* Pomodoro Insights */}
+      {/* Pomodoro Insights (Theme-agnostic opacity) */}
       {pomodoroInsights.completed > 0 && (
-        <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+        // --- THEME ---
+        <div className="mb-4 p-3 bg-orange-500/10 rounded-lg border border-orange-500/30">
           <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
+            <div className="flex items-center gap-2 text-orange-600">
               <Target size={16} />
               <span className="font-medium">Pomodoro Analytics</span>
             </div>
@@ -609,25 +653,29 @@ useEffect(() => {
           <div className="grid grid-cols-3 gap-2 text-center text-xs">
             <div>
               <div className="font-semibold text-orange-500">{pomodoroInsights.weekly}</div>
-              <div className="text-gray-500">This Week</div>
+              {/* --- THEME --- */}
+              <div className="text-[var(--text-secondary)]">This Week</div>
             </div>
             <div>
               <div className="font-semibold text-orange-500">{pomodoroInsights.daily}</div>
-              <div className="text-gray-500">Today</div>
+              {/* --- THEME --- */}
+              <div className="text-[var(--text-secondary)]">Today</div>
             </div>
             <div>
               <div className="font-semibold text-orange-500">{pomodoroInsights.avgPerSession}m</div>
-              <div className="text-gray-500">Avg/Session</div>
+              {/* --- THEME --- */}
+              <div className="text-[var(--text-secondary)]">Avg/Session</div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Recent Activity Summary */}
+      {/* Recent Activity Summary (Theme-agnostic opacity) */}
       {recentActivity.length > 0 && (
-        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+        // --- THEME ---
+        <div className="p-3 bg-blue-500/10 rounded-lg border border-blue-500/30">
           <div className="flex items-center justify-between text-sm mb-2">
-            <span className="font-medium text-blue-600 dark:text-blue-400">Recent Activity</span>
+            <span className="font-medium text-blue-500">Recent Activity</span>
             <span className="text-xs text-blue-500">
               {recentActivity.length} activities
             </span>
@@ -635,10 +683,12 @@ useEffect(() => {
           <div className="space-y-1 max-h-20 overflow-y-auto">
             {recentActivity.slice(0, 3).map((activity, index) => (
               <div key={index} className="flex items-center justify-between text-xs">
-                <span className="text-gray-600 dark:text-gray-400 truncate">
+                {/* --- THEME --- */}
+                <span className="text-[var(--text-secondary)] truncate">
                   {activity.type === 'completed' ? '✅' : '⏱️'} {activity.task}
                 </span>
-                <span className="text-gray-500 whitespace-nowrap">
+                {/* --- THEME --- */}
+                <span className="text-[var(--text-secondary)] whitespace-nowrap">
                   {activity.timeSpent ? formatMinutesToTime(activity.timeSpent) : ''}
                 </span>
               </div>

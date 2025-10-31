@@ -140,6 +140,8 @@ export const uploadAPI = {
     }))(),
 };
 
+
+
 export const authAPI = {
   login: (credentials) => 
     withRetry(() => api.post('/auth/login', credentials))(),
@@ -210,6 +212,22 @@ export const analyticsAPI = {
         focusTime: "0m"
       };
     }
+  },
+
+  delete: async (planId) => {
+    const response = await fetch(`/api/plans/${planId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to delete plan');
+    }
+    
+    return await response.json();
   },
 
   getPomodoroStats: async (period = 'week') => {

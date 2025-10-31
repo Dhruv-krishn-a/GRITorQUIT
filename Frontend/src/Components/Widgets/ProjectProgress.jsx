@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Target, TrendingUp, BarChart3, Calendar, Users, Flag, MoreVertical } from 'lucide-react';
+import { Target, TrendingUp, BarChart3, Calendar, Users, Flag, MoreVertical, CheckCircle2 } from 'lucide-react';
 
 export default function ProjectProgress({ 
   plans = [], 
@@ -16,8 +16,17 @@ export default function ProjectProgress({
 
   useEffect(() => {
     const now = new Date();
-    setActivePlans(plans.filter(plan => new Date(plan.endDate) > now && plan.progress < 100));
-    setCompletedPlans(plans.filter(plan => plan.progress >= 100 || new Date(plan.endDate) <= now));
+    // Ensure progress is a number
+    const getProgress = (plan) => plan.progress || 0;
+    
+    setActivePlans(plans.filter(plan => {
+      const progress = getProgress(plan);
+      return new Date(plan.endDate) > now && progress < 100;
+    }));
+    setCompletedPlans(plans.filter(plan => {
+      const progress = getProgress(plan);
+      return progress >= 100 || new Date(plan.endDate) <= now;
+    }));
   }, [plans]);
 
   const getDaysRemaining = (endDate) => {
@@ -35,7 +44,7 @@ export default function ProjectProgress({
     if (daysRemaining < 0) return 'red';
     if (daysRemaining <= 3) return 'orange';
     if (progress >= 80) return 'blue';
-    return 'purple';
+    return 'purple'; // 'purple' will be our accent color
   };
 
   const getPriorityColor = (priority) => {
@@ -47,80 +56,107 @@ export default function ProjectProgress({
     }
   };
 
+  // --- THEME --- Helper for theme-agnostic priority badges
+  const getPriorityClasses = (priority) => {
+    const color = getPriorityColor(priority);
+    return `bg-${color}-500/10 text-${color}-600`;
+  };
+
   if (isCompact || containerWidth < 400) {
     return (
-      <div className="space-y-3">
+      // --- FIX --- REMOVED the wrapper div, added h-full flex flex-col
+      <div className="space-y-3 h-full flex flex-col">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Target size={16} className="text-green-500" />
-            <span className="text-sm font-medium">Projects</span>
+            {/* --- THEME --- */}
+            <span className="text-sm font-medium text-[var(--text-primary)]">Projects</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-lg font-bold text-green-500">{completedPlans.length}</span>
-            <span className="text-gray-400">/</span>
-            <span className="text-gray-600">{plans.length}</span>
+            {/* --- THEME --- */}
+            <span className="text-[var(--text-secondary)]">/</span>
+            <span className="text-[var(--text-secondary)]">{plans.length}</span>
           </div>
         </div>
         
-        <div className="space-y-2">
-          {activePlans.slice(0, 2).map((plan, index) => {
+        {/* --- RESPONSIVE --- List scrolls if too tall */}
+        <div className="space-y-2 flex-1 overflow-y-auto">
+          {activePlans.slice(0, 3).map((plan, index) => { // Show 3 items in compact
             const daysRemaining = getDaysRemaining(plan.endDate);
             const statusColor = getStatusColor(plan.progress, plan.endDate);
+            const colorClass = statusColor === 'purple' ? 'text-[var(--accent-color)]' : `text-${statusColor}-600`;
+            const bgClass = statusColor === 'purple' ? 'bg-[var(--accent-color)]' : `bg-${statusColor}-500`;
             
             return (
               <div 
                 key={index}
-                className="p-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all cursor-pointer"
+                // --- THEME --- REMOVED bg-white/dark:bg-gray-800
+                className="p-2 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-color)] hover:shadow-md transition-all cursor-pointer"
                 onClick={() => onProjectClick(plan)}
               >
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-sm font-medium truncate">{plan.title}</span>
-                  <span className={`text-xs text-${statusColor}-600`}>{plan.progress}%</span>
+                  {/* --- THEME --- */}
+                  <span className="text-sm font-medium truncate text-[var(--text-primary)]">{plan.title}</span>
+                  <span className={`text-xs ${colorClass}`}>{plan.progress || 0}%</span>
                 </div>
-                <div className="flex justify-between text-xs text-gray-500 mb-2">
-                  <span>{plan.completedTasks}/{plan.totalTasks} tasks</span>
+                {/* --- THEME --- */}
+                <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
+                  <span>{plan.completedTasks || 0}/{plan.totalTasks || 0} tasks</span>
                   <span>{daysRemaining}d left</span>
                 </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                {/* --- THEME --- */}
+                <div className="w-full bg-[var(--hover-bg)] rounded-full h-1.5">
                   <div 
-                    className={`bg-${statusColor}-500 h-1.5 rounded-full transition-all duration-500`}
-                    style={{ width: `${plan.progress}%` }}
+                    className={`${bgClass} h-1.5 rounded-full transition-all duration-500`}
+                    style={{ width: `${plan.progress || 0}%` }}
                   />
                 </div>
               </div>
             );
           })}
+           {activePlans.length === 0 && (
+            <div className="text-center py-4 text-[var(--text-secondary)]">
+              <CheckCircle2 size={24} className="mx-auto mb-2 opacity-50" />
+              <div className="text-sm">No active projects</div>
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    // --- RESPONSIVE --- REMOVED wrapper div, Changed to flex-col layout
+    <div className="h-full flex flex-col space-y-4">
       {/* Overall Progress */}
       <div className="grid grid-cols-3 gap-4 text-center">
-        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+        {/* --- THEME --- */}
+        <div className="p-4 bg-blue-500/10 rounded-lg">
           <div className="text-2xl font-bold text-blue-600">{plans.length}</div>
           <div className="text-xs text-blue-600">Total Projects</div>
         </div>
-        <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+        {/* --- THEME --- */}
+        <div className="p-4 bg-green-500/10 rounded-lg">
           <div className="text-2xl font-bold text-green-600">{completionStats.percentage}%</div>
           <div className="text-xs text-green-600">Overall Progress</div>
         </div>
-        <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-          <div className="text-2xl font-bold text-purple-600">{activePlans.length}</div>
-          <div className="text-xs text-purple-600">Active</div>
+        {/* --- THEME --- */}
+        <div className="p-4 bg-[var(--accent-color)]/10 rounded-lg">
+          <div className="text-2xl font-bold text-[var(--accent-color)]">{activePlans.length}</div>
+          <div className="text-xs text-[var(--accent-color)]">Active</div>
         </div>
       </div>
 
       {/* View Toggle */}
-      <div className="flex gap-2 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+      {/* --- THEME --- */}
+      <div className="flex gap-2 bg-[var(--hover-bg)] rounded-lg p-1">
         <button
           onClick={() => setView('active')}
           className={`flex-1 py-2 px-3 text-sm rounded-md transition-all ${
             view === 'active' 
-              ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' 
-              : 'text-gray-600 dark:text-gray-400'
+              ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' 
+              : 'text-[var(--text-secondary)]'
           }`}
         >
           Active ({activePlans.length})
@@ -129,34 +165,37 @@ export default function ProjectProgress({
           onClick={() => setView('completed')}
           className={`flex-1 py-2 px-3 text-sm rounded-md transition-all ${
             view === 'completed' 
-              ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' 
-              : 'text-gray-600 dark:text-gray-400'
+              ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' 
+              : 'text-[var(--text-secondary)]'
           }`}
         >
           Completed ({completedPlans.length})
         </button>
       </div>
 
-      {/* Projects List */}
-      <div>
+      {/* --- RESPONSIVE --- This section will flex and scroll */}
+      <div className="flex-1 flex flex-col min-h-0">
         <div className="flex items-center gap-2 mb-3">
-          <TrendingUp size={16} className="text-purple-500" />
-          <h4 className="font-medium">
+          {/* --- THEME --- */}
+          <TrendingUp size={16} className="text-[var(--accent-color)]" />
+          <h4 className="font-medium text-[var(--text-primary)]">
             {view === 'active' ? 'Active Projects' : 'Completed Projects'} 
             ({view === 'active' ? activePlans.length : completedPlans.length})
           </h4>
         </div>
         
-        <div className="space-y-3">
-          {(view === 'active' ? activePlans : completedPlans).slice(0, 4).map((plan, index) => {
+        {/* --- RESPONSIVE --- This list now scrolls */}
+        <div className="space-y-3 flex-1 overflow-y-auto pr-1">
+          {(view === 'active' ? activePlans : completedPlans).map((plan, index) => {
             const daysRemaining = getDaysRemaining(plan.endDate);
-            const statusColor = getStatusColor(plan.progress, plan.endDate);
-            const isOverdue = daysRemaining < 0;
+            const isOverdue = daysRemaining < 0 && (plan.progress || 0) < 100;
+            const progress = plan.progress || 0;
             
             return (
               <div 
                 key={index}
-                className="relative p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all cursor-pointer group"
+                // --- THEME --- REMOVED bg-white/dark:bg-gray-800
+                className="relative p-4 bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-color)] hover:shadow-lg transition-all cursor-pointer group"
                 onMouseEnter={() => setSelectedProject(plan)}
                 onMouseLeave={() => setSelectedProject(null)}
                 onClick={() => onProjectClick(plan)}
@@ -165,44 +204,51 @@ export default function ProjectProgress({
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <div className="font-medium text-sm truncate">{plan.title}</div>
+                      {/* --- THEME --- */}
+                      <div className="font-medium text-sm truncate text-[var(--text-primary)]">{plan.title}</div>
                       {plan.priority && (
-                        <span className={`px-2 py-0.5 text-xs rounded-full bg-${getPriorityColor(plan.priority)}-100 text-${getPriorityColor(plan.priority)}-600`}>
+                        // --- THEME ---
+                        <span className={`px-2 py-0.5 text-xs rounded-full ${getPriorityClasses(plan.priority)}`}>
                           {plan.priority}
                         </span>
                       )}
                     </div>
                     {plan.description && (
-                      <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
+                      // --- THEME ---
+                      <div className="text-xs text-[var(--text-secondary)] line-clamp-2">
                         {plan.description}
                       </div>
                     )}
                   </div>
                   
                   <div className="text-right flex-shrink-0 ml-2">
-                    <div className="text-lg font-bold text-purple-600">{plan.progress}%</div>
+                    {/* --- THEME --- */}
+                    <div className="text-lg font-bold text-[var(--accent-color)]">{progress}%</div>
+                    {/* --- THEME --- */}
                     <div className={`text-xs ${
-                      isOverdue ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'
+                      isOverdue ? 'text-red-500' : 'text-[var(--text-secondary)]'
                     }`}>
-                      {isOverdue ? `${Math.abs(daysRemaining)}d overdue` : `${daysRemaining}d left`}
+                      {progress >= 100 ? 'Completed' : isOverdue ? `${Math.abs(daysRemaining)}d overdue` : `${daysRemaining}d left`}
                     </div>
                   </div>
                 </div>
                 
                 {/* Progress Bar */}
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-3">
+                {/* --- THEME --- */}
+                <div className="w-full bg-[var(--hover-bg)] rounded-full h-2 mb-3">
                   <div 
-                    className={`bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-500`}
-                    style={{ width: `${plan.progress}%` }}
+                    className={`bg-gradient-to-r from-[var(--accent-color)] to-[color-mix(in_srgb,var(--accent-color)_80%_black)] h-2 rounded-full transition-all duration-500`}
+                    style={{ width: `${progress}%` }}
                   />
                 </div>
                 
                 {/* Stats */}
-                <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                {/* --- THEME --- */}
+                <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-1">
                       <Target size={12} />
-                      <span>{plan.completedTasks}/{plan.totalTasks} tasks</span>
+                      <span>{plan.completedTasks || 0}/{plan.totalTasks || 0} tasks</span>
                     </div>
                     
                     {plan.teamSize && (
@@ -224,7 +270,8 @@ export default function ProjectProgress({
                 {/* Hover Actions */}
                 {selectedProject?.id === plan.id && (
                   <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
+                    {/* --- THEME --- */}
+                    <button className="p-1 hover:bg-[var(--hover-bg)] text-[var(--text-secondary)] rounded">
                       <MoreVertical size={14} />
                     </button>
                   </div>
@@ -234,7 +281,8 @@ export default function ProjectProgress({
           })}
           
           {(view === 'active' ? activePlans : completedPlans).length === 0 && (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+            // --- THEME ---
+            <div className="text-center py-8 text-[var(--text-secondary)]">
               <BarChart3 size={32} className="mx-auto mb-2 opacity-50" />
               <div className="text-sm">
                 {view === 'active' ? 'No active projects' : 'No completed projects'}
@@ -247,27 +295,33 @@ export default function ProjectProgress({
         </div>
       </div>
 
-      {/* Quick Stats */}
+      {/* --- RESPONSIVE --- Footer (does not scroll) */}
       {plans.length > 0 && (
-        <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+        // --- THEME ---
+        <div className="pt-3 border-t border-[var(--border-color)]">
           <div className="grid grid-cols-4 gap-2 text-center text-xs">
             <div>
               <div className="font-bold text-blue-600">{plans.length}</div>
-              <div className="text-gray-500">Total</div>
+              {/* --- THEME --- */}
+              <div className="text-[var(--text-secondary)]">Total</div>
             </div>
             <div>
               <div className="font-bold text-green-600">{completedPlans.length}</div>
-              <div className="text-gray-500">Done</div>
+              {/* --- THEME --- */}
+              <div className="text-[var(--text-secondary)]">Done</div>
             </div>
             <div>
-              <div className="font-bold text-purple-600">{activePlans.length}</div>
-              <div className="text-gray-500">Active</div>
+              {/* --- THEME --- */}
+              <div className="font-bold text-[var(--accent-color)]">{activePlans.length}</div>
+              {/* --- THEME --- */}
+              <div className="text-[var(--text-secondary)]">Active</div>
             </div>
             <div>
               <div className="font-bold text-red-600">
                 {activePlans.filter(p => getDaysRemaining(p.endDate) < 0).length}
               </div>
-              <div className="text-gray-500">Overdue</div>
+              {/* --- THEME --- */}
+              <div className="text-[var(--text-secondary)]">Overdue</div>
             </div>
           </div>
         </div>

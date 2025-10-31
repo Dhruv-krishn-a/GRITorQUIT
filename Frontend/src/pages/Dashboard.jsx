@@ -432,16 +432,25 @@ export default function Dashboard({ username, onLogout }) {
     return (
       <div
         ref={ref}
-        className="h-full w-full bg-white dark:bg-[#141414] rounded-xl shadow-md transition-all duration-200 hover:shadow-lg"
+        // --- THIS IS THE FIX ---
+        // Replaces bg-white dark:bg-[#141414]
+        className="h-full w-full bg-[var(--bg-card)] rounded-xl shadow-md transition-all duration-200 hover:shadow-lg"
       >
         <div
-          className={`drag-handle flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 ${isEditMode ? "cursor-move" : "cursor-default"}`}
+          // --- THIS IS THE FIX ---
+          // Replaces border-gray-100 dark:border-gray-800
+          className={`drag-handle flex items-center justify-between px-4 py-3 border-b border-[var(--border-color)] ${isEditMode ? "cursor-move" : "cursor-default"}`}
         >
-          <div className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{title}</div>
-          <div className="text-xs text-neutral-400">{isEditMode ? "Drag to move" : ""}</div>
+          {/* --- THIS IS THE FIX --- */}
+          {/* Replaces text-neutral-900 dark:text-neutral-100 */}
+          <div className="text-sm font-medium text-[var(--text-primary)]">{title}</div>
+          
+          {/* --- THIS IS THE FIX --- */}
+          {/* Replaces text-neutral-400 */}
+          <div className="text-xs text-[var(--text-secondary)]">{isEditMode ? "Drag to move" : ""}</div>
         </div>
 
-        <div className="p-4 h-[calc(100%-52px)] overflow-hidden">
+        <div className="p-4 h-[calc(100%-52px)] overflow-y-auto">
           {childWithProps}
         </div>
       </div>
